@@ -111,7 +111,7 @@ function tarefaHtml(t){
   return '<div class="card"><div class="task"><div><div class="nm">'+esc(t.nome)+'</div>'+
     '<div class="meta">Feito às '+hm(t.feito)+(t.func?" por "+esc(t.func):"")+(t.via==="aviso"?" (pelo aviso)":"")+'</div></div>'+
     '<span class="tag '+cls+'">'+atrasoTxt(atr)+'</span></div>'+
-    '<div class="meta">'+(t.pts?"+"+t.pts+" pts":"0 pts")+(t.pen?" · demora: -"+t.pen:"")+'</div>'+
+    '<div class="meta">'+((t.pts>0?"+":"")+(t.pts||0)+" pts")+(t.pen?" · demora: -"+t.pen:"")+'</div>'+
     (sel?'<div style="margin-top:6px">'+sel+'</div>':"")+acts+'</div>';
 }
 
