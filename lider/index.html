@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caixa - Líder</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<meta name="theme-color" content="#1B2433">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#F3F5F8;--card:#fff;--ink:#1B2433;--mut:#5B6878;--line:#E1E6ED;--ok:#147D56;--okbg:#E4F4EC;--warn:#B8600A;--warnbg:#FDF0DE;--bad:#C4262E;--badbg:#FCE7E8;--acc:#E0246E;--blue:#2347D6}
+@media (prefers-color-scheme:dark){:root{--bg:#10151D;--card:#1A212C;--ink:#EEF2F7;--mut:#9AA7B8;--line:#2A3340;--ok:#4CC38A;--okbg:#14301F;--warn:#F0A04B;--warnbg:#38280F;--bad:#FF7A80;--badbg:#3A171A;--acc:#FF5C9A;--blue:#7F9BFF}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+main{max-width:720px;margin:0 auto}
+header{padding:calc(16px + env(safe-area-inset-top)) 0 8px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:20px;margin:0}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:22px 0 8px}
+.sub{color:var(--mut);font-size:14px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.on .dot{background:var(--ok)}.off .dot{background:var(--bad)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mut)}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--ok)}
+.task{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.task .nm{font-weight:600}
+.meta{font-size:13px;color:var(--mut);margin-top:2px}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;margin-right:4px}
+.t-ok{background:var(--okbg);color:var(--ok)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-bad{background:var(--badbg);color:var(--bad)}.t-mut{background:var(--line);color:var(--mut)}
+.acts{display:flex;gap:8px;margin-top:10px}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;min-height:44px}
+.b-ok{background:var(--ok);color:#fff}.b-no{background:var(--badbg);color:var(--bad)}.b-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.urg{border-color:var(--bad);background:var(--badbg)}
+.empty{color:var(--mut);padding:8px 0}
+select,input{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+.setup label{display:block;margin:10px 0 4px;font-size:14px;color:var(--mut)}
+.err{color:var(--bad);font-size:14px;margin-top:8px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+(function(){
+"use strict";
+var $=document.getElementById("app");
+var S={u:"",t:"",dia:"",dias:[],snap:null,val:{},meta:null,erro:"",carregando:true,aba:"hoje"};
+var POLL=5000, timer=null;
+
+function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function ler(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function hm(ms){var d=new Date(ms);return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
+function hoje(){var d=new Date();return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function dataBR(s){var p=s.split("-");return p[2]+"/"+p[1]}
+function ha(ms){var m=Math.max(0,Math.round((Date.now()-ms)/60000));return m<1?"agora":m<60?"há "+m+" min":"há "+Math.floor(m/60)+" h"}
+function atrasoTxt(m){return m<1?"na hora":m<60?Math.round(m)+" min de atraso":Math.floor(m/60)+" h "+Math.round(m%60)+" min de atraso"}
+
+// credenciais vêm do link (#u=...&t=...) e ficam guardadas neste aparelho
+(function(){
+  var h=location.hash.replace(/^#/,"");
+  if(h){var p={};h.split("&").forEach(function(x){var i=x.indexOf("=");if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1))});
+    if(p.u&&p.t){guardar("cx_u",p.u);guardar("cx_t",p.t);history.replaceState(null,"",location.pathname+location.search)}}
+  S.u=ler("cx_u").replace(/\/+$/,"");S.t=ler("cx_t");
+})();
+
+function url(caminho){return S.u+"/lojas/"+encodeURIComponent(S.t)+"/"+caminho+".json"}
+function get(caminho){return fetch(url(caminho),{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function put(caminho,dados){return fetch(url(caminho),{method:"PUT",body:JSON.stringify(dados)}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+
+function carregar(){
+  if(!S.u||!S.t){render();return Promise.resolve()}
+  return get("meta").then(function(meta){
+    S.meta=meta||null;
+    if(!S.dia)S.dia=(meta&&meta.ultimo)||hoje();
+    return Promise.all([get("dias/"+S.dia),get("validacoes/"+S.dia),
+      fetch(url("dias")+"?shallow=true",{cache:"no-store"}).then(function(r){return r.ok?r.json():null})]);
+  }).then(function(r){
+    S.snap=r[0];S.val=r[1]||{};S.dias=r[2]?Object.keys(r[2]).sort().reverse():[];
+    S.erro="";S.carregando=false;render();
+  }).catch(function(e){
+    S.erro=(String(e.message)==="401"||String(e.message)==="403")?"O banco recusou o acesso. Confira as regras no Firebase.":"Sem conexão com a nuvem. Vou tentar de novo.";
+    S.carregando=false;render();
+  });
+}
+function agendar(){clearTimeout(timer);timer=setTimeout(function(){carregar().then(agendar)},POLL)}
+
+function validar(key,ok){
+  var nota="";
+  if(!ok){nota=prompt("Por que não está certo? (opcional)","")||"";}
+  var dado={ok:ok,ts:Date.now(),nota:nota};
+  S.val[key]=dado;render();
+  put("validacoes/"+S.dia+"/"+key,dado).catch(function(){S.erro="Não consegui enviar a validação. Tente de novo.";delete S.val[key];render()});
+}
+window.validar=validar;
+window.mudaDia=function(v){S.dia=v;S.snap=null;S.carregando=true;carregar()};
+window.salvarSetup=function(){
+  var u=document.getElementById("su").value.trim(),t=document.getElementById("st").value.trim();
+  if(u&&t){guardar("cx_u",u);guardar("cx_t",t);S.u=u.replace(/\/+$/,"");S.t=t;S.carregando=true;carregar().then(agendar)}
+};
+window.trocarAba=function(a){S.aba=a;render()};
+window.sair=function(){if(confirm("Desconectar este aparelho da loja?")){guardar("cx_u","");guardar("cx_t","");S.u=S.t="";S.snap=null;render()}};
+
+function tarefaHtml(t){
+  var v=S.val[t.key],atr=t.atraso,cls=atr<=5?"t-ok":atr<=15?"t-warn":"t-bad";
+  var sel=v?(v.ok?'<span class="tag t-ok">Conferido pelo líder</span>':'<span class="tag t-bad">Você marcou: não estava feito</span>'):"";
+  var acts=v?"":'<div class="acts"><button class="b-ok" onclick="validar(\''+esc(t.key)+'\',true)">Conferido</button><button class="b-no" onclick="validar(\''+esc(t.key)+'\',false)">Não estava feito</button></div>';
+  return '<div class="card"><div class="task"><div><div class="nm">'+esc(t.nome)+'</div>'+
+    '<div class="meta">Feito às '+hm(t.feito)+(t.func?" por "+esc(t.func):"")+(t.via==="aviso"?" (pelo aviso)":"")+'</div></div>'+
+    '<span class="tag '+cls+'">'+atrasoTxt(atr)+'</span></div>'+
+    '<div class="meta">'+(t.pts?"+"+t.pts+" pts":"0 pts")+(t.pen?" · demora: -"+t.pen:"")+'</div>'+
+    (sel?'<div style="margin-top:6px">'+sel+'</div>':"")+acts+'</div>';
+}
+
+function render(){
+  if(!S.u||!S.t){
+    $.innerHTML='<header><h1>Caixa · Líder</h1></header><div class="card setup"><p>Abra o link que o programa do caixa gerou (Configurações &gt; Líder e celular &gt; Copiar link do líder), ou preencha abaixo.</p>'+
+      '<label>Endereço do Firebase</label><input id="su" placeholder="https://xxxx-default-rtdb.firebaseio.com" autocapitalize="off">'+
+      '<label>Código da loja</label><input id="st" autocapitalize="off"><div class="acts"><button class="b-ok" onclick="salvarSetup()">Conectar</button></div></div>';
+    return;
+  }
+  var s=S.snap,h='';
+  var vivo=S.meta&&S.meta.atualizado&&(Date.now()-S.meta.atualizado<12*60000);
+  h+='<header><div><h1>'+esc((s&&s.loja)||(S.meta&&S.meta.loja)||"Caixa")+'</h1><div class="sub">'+dataBR(S.dia)+(S.dia===hoje()?" · hoje":"")+'</div></div>'+
+     '<span class="pill '+(vivo?"on":"off")+'"><span class="dot"></span>'+(S.meta&&S.meta.atualizado?(vivo?"ao vivo · "+ha(S.meta.atualizado):"sem sinal · "+ha(S.meta.atualizado)):"sem dados")+'</span></header>';
+  if(S.erro)h+='<div class="err">'+esc(S.erro)+'</div>';
+  if(S.dias.length>1){h+='<select onchange="mudaDia(this.value)" aria-label="Dia">'+S.dias.map(function(d){return '<option value="'+d+'"'+(d===S.dia?" selected":"")+'>'+dataBR(d)+'</option>'}).join("")+'</select>'}
+  if(!s){h+=S.carregando?'<p class="empty">Carregando...</p>':'<p class="empty">Nenhum dado neste dia ainda.</p>';$.innerHTML=h+'<p><button class="b-ghost" onclick="sair()">Desconectar</button></p>';return}
+  var feitas=s.tarefas||[],falt=s.faltando||[],urg=s.urgentes||[],rej=s.rejeitadas||[];
+  var pend=feitas.filter(function(t){return!S.val[t.key]}).length;
+  var pct=s.total?Math.round(100*(s.total-falt.length)/s.total):0;
+  h+='<div class="kpis"><div class="kpi"><b>'+(s.total-falt.length)+' / '+s.total+'</b><span>tarefas feitas</span></div>'+
+     '<div class="kpi"><b>'+pend+'</b><span>para você conferir</span></div>'+
+     '<div class="kpi"><b>'+(s.pontos||0)+'</b><span>pontos hoje</span></div></div>'+
+     '<div class="bar"><i style="width:'+pct+'%"></i></div>';
+  if(s.funcionario)h+='<div class="sub" style="margin-top:8px">No caixa: <b>'+esc(s.funcionario)+'</b>'+(s.aberto===false?" · loja fechada hoje":"")+'</div>';
+  if(urg.length){h+='<h2>Urgente agora</h2>'+urg.map(function(u){return '<div class="card urg"><div class="nm">'+esc(u.nome)+'</div><div class="meta">Pendente '+ha(u.desde).replace("há ","há ")+'</div></div>'}).join("")}
+  h+='<h2>Falta fazer ('+falt.length+')</h2>'+(falt.length?falt.map(function(n){return '<div class="card"><div class="nm">'+esc(n)+'</div></div>'}).join(""):'<div class="empty">Nada pendente.</div>');
+  h+='<h2>Feitas ('+feitas.length+')</h2>'+(feitas.length?feitas.slice().reverse().map(tarefaHtml).join(""):'<div class="empty">Ainda nada.</div>');
+  if(rej.length){h+='<h2>Você marcou como não feitas</h2>'+rej.map(function(r){return '<div class="card"><div class="nm">'+esc(r.nome)+'</div><div class="meta">'+hm(r.quando)+(r.nota?" · "+esc(r.nota):"")+' · -'+r.pts+' pts</div></div>'}).join("")}
+  h+='<p style="margin-top:20px"><button class="b-ghost" onclick="sair()">Desconectar este aparelho</button></p>';
+  var y=window.scrollY;$.innerHTML=h;window.scrollTo(0,y);
+}
+render();carregar().then(agendar);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)carregar()});
+})();
+</script>
+</body>
+</html>

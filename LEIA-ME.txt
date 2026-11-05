@@ -1,0 +1,129 @@
+PAINEL DO CAIXA - aplicativo para Windows
+==========================================
+
+O que ele faz
+- Fica oculto e abre sozinho quando o Windows liga.
+- Mostra avisos por cima de qualquer programa, sem tirar o foco do sistema de vendas.
+- Os avisos mudam de formato (etiqueta no canto, faixa no topo, borda piscando, pergunta, bolinha piscando) e de horario, para o caixa nao se acostumar.
+- Caixa de hora em hora e conferencias (Pix, vendas em aberto, entregas, promissorias) viram PENDENCIAS:
+    1) aparece um aviso rosa no canto;
+    2) se nao marcar "Concluido" em 4 minutos, aparece um aviso laranja maior, com som e borda piscando;
+    3) depois de 8 minutos vira uma faixa vermelha no topo, com som, repetindo a cada 3 minutos ate ser marcado.
+  Cada aviso tem os botoes "Concluido" e "Adiar 5 min".
+- Tem o botao "Cliente na frente", que pausa os avisos por 4 minutos e volta sozinho.
+- Ao concluir uma tarefa aparece uma mensagem alegre (verde, some sozinha). Quando TODAS as tarefas do dia
+  ficam prontas, aparece uma comemoracao com confete.
+- LEMBRETES DA MAQUININHA: as 10:15, 14:30 e 18:30 aparece o lembrete de carregar a maquininha. Ele funciona como
+  as outras pendencias (rosa, depois laranja, depois vermelho) ate ser marcado como feito. Os horarios e os textos
+  ficam em Configuracoes > Maquininha.
+- AVISOS ALEGRES: de vez em quando o rodizio traz uma frase de animo (verde), por exemplo
+  "Seu sorriso muda o dia de quem chega na loja!". A chance disso e ajustavel.
+- PONTOS E PREMIO (versao simples): tarefa feita na hora (ate 5 min) vale 2 pontos, ate 15 min vale 1, depois disso 0.
+  Nao existe combo. Cada conferencia so pontua 4 vezes por dia e repetir o clique logo em seguida nao vale nada.
+  Completar o dia da 5 pontos de bonus. Meta da semana padrao: 150 pontos, com o premio que o patrao escolher.
+  Se o lider marcar uma tarefa como "nao estava feito", os pontos dela saem e ha penalidade.
+- LIDER NO CELULAR: as tarefas aparecem ao vivo no celular do lider, que confere cada uma. Veja o arquivo LIDER.txt.
+- HORARIOS POR DIA: cada dia da semana tem o seu horario (segunda um, terca outro, sabado curto, domingo fechado).
+  Dia fechado fica em silencio e sem relatorio. Configuracoes > Horarios por dia.
+- FUNCIONARIOS: cadastre cada pessoa do caixa e o turno dela em cada dia (ex.: 09:00-15:00). O app sabe quem esta
+  no caixa pelo horario; cada um tem seus pontos, sequencia e meta da semana. Se alguem cobrir o outro, use o botao
+  "Trocar funcionario" (na janela ou no icone). O relatorio mostra os numeros de cada um.
+- PENALIDADES: demorar demais tira pontos. Padrao: depois de 15 min de atraso perde 2 pontos a cada 10 min (maximo 10
+  por tarefa); tarefa que ficou sem fazer perde 5. O aviso vermelho mostra quanto ja foi perdido e o relatorio lista
+  cada desconto. Os pontos nunca ficam abaixo de zero. Ajuste em Configuracoes > Penalidades.
+- RELATORIO AUTOMATICO POR E-MAIL: ao fim do expediente o relatorio em PDF e gerado e enviado sozinho para o e-mail
+  do patrao, sem depender do funcionario. Se estiver sem internet, tenta de novo a cada 10 minutos. Se o computador
+  ficou desligado no fim do dia, o relatorio daquele dia e gerado e enviado na proxima vez que o programa abrir.
+- No fim do expediente (horario final de cada dia) ele gera o RELATORIO DO DIA em PDF e avisa. Tambem da para gerar a qualquer hora:
+  botao "Gerar relatorio do dia" na janela do checklist, ou botao direito no icone.
+- O relatorio mostra tarefas concluidas, tempo de demora de cada uma, graficos, o que precisa melhorar
+  e os pontos fortes. Fica na pasta "Relatorios do Caixa" na Area de Trabalho, pronto para enviar ao patrao.
+
+
+CONFIGURACOES (para o patrao ou gerente)
+- Abra pelo botao "Configuracoes" na janela do checklist, ou botao direito no icone > Configuracoes.
+- Abas:
+    Avisos ............ de quantos em quantos minutos avisa (minimo e maximo), chance de aviso alegre,
+                        quando a pendencia fica laranja e vermelha, tempo do botao Adiar, sons.
+    Horarios por dia .. aberto/fechado, horario e horas do caixa de cada dia da semana.
+    Funcionarios ...... nomes e turnos de cada um por dia.
+    Maquininha ........ lembretes por horario (um por linha:  HH:MM | nome | texto do aviso).
+    Frases e tarefas .. editar as tarefas, os avisos e as mensagens de parabens.
+    Pontos e premio ... pontos por tarefa, bonus, meta da semana e o premio.
+    Penalidades ....... quando e quantos pontos descontar.
+    E-mail ............ envio automatico do relatorio (servidor, e-mail, senha, destinatario) e botao de teste.
+    Geral ............. nome da loja e do caixa, pasta dos relatorios e SENHA das configuracoes.
+- Clique em Salvar: vale na hora, sem precisar reiniciar. "Restaurar padroes" volta tudo ao original.
+- Se colocar senha, guarde-a. Para recuperar, apague o config.json (volta tudo ao padrao).
+- Use {nome} nas frases para aparecer o nome do caixa. Exemplo: "Bom trabalho, {nome}!"
+
+
+CONFIGURAR O E-MAIL (uma vez)
+- Abra Configuracoes > E-mail, marque "Enviar o relatorio...", escolha o provedor (Gmail, Outlook, Yahoo).
+- Gmail: ligue a verificacao em duas etapas na conta e crie uma "Senha de app" em Conta Google > Seguranca > Senhas
+  de app. Use essa senha no campo Senha (nao a senha normal da conta).
+- Informe o e-mail de quem envia (pode ser um e-mail so da loja) e o de quem recebe, e clique "Enviar e-mail de teste".
+- A senha fica gravada em texto no arquivo config.json deste computador. Por isso use um e-mail so para isso.
+- O computador precisa estar ligado e com internet no fechamento.
+
+
+RELATORIO: COMO LER
+- Verde: feito em ate 5 minutos depois do horario previsto. Amarelo: ate 15 minutos. Vermelho: mais que isso, ou nao feito.
+- "Horario previsto": 09:00 para a abertura, cada hora cheia para o caixa, e para as conferencias o
+  momento em que o aviso apareceu.
+- Tarefa marcada direto na lista (sem esperar o aviso) conta como feita no horario em que foi marcada.
+- Pontos, nivel, sequencia e meta da semana tambem aparecem no relatorio.
+- Uma copia dos dados de cada dia fica na pasta "historico".
+
+
+INSTALAR (uma vez so)
+1. Instale o Python: https://www.python.org/downloads/
+   Na primeira tela do instalador, marque "Add python.exe to PATH".
+2. Copie esta pasta inteira (caixa.pyw, relatorio.py, configuracoes.py, envio.py, instalar.py, instalar.bat e LEIA-ME.txt juntos) para um lugar fixo, por exemplo C:\PainelCaixa
+   (nao deixe em Downloads nem na Area de Trabalho).
+3. Clique duas vezes em instalar.bat e espere aparecer "PRONTO!".
+   (Se o instalar.bat der problema: abra o Prompt de Comando dentro da pasta e digite   py instalar.py )
+4. Procure o icone de etiqueta rosa perto do relogio do Windows (pode estar escondido na setinha ^).
+   Arraste para a barra para ele ficar sempre visivel.
+
+
+USAR
+- Clique duas vezes no icone: abre o checklist do dia.
+- Botao direito no icone:
+    * Abrir checklist
+    * Trocar funcionario
+    * Configuracoes
+    * Cliente na frente (pausar avisos)
+    * Ver os 5 formatos de aviso (bom para testar)
+    * Sair
+- Fechar a janela do checklist no X NAO fecha o programa, so esconde.
+
+
+MUDAR TEXTOS, HORARIOS E TEMPOS
+- Abra o arquivo config.json (Bloco de Notas ou VS Code: Arquivo > Abrir Pasta).
+- La ficam (prefira o painel de Configuracoes): horarios, horas do caixa, itens do "Ao chegar", conferencias,
+  a lista de avisos "durante_atendimento" e "quando_livre", e os tempos (intervalo dos avisos,
+  quando a pendencia fica laranja e vermelha, repeticao das conferencias).
+- Cuidado para manter as aspas e as virgulas. Se o arquivo ficar com erro, apague o config.json
+  e o programa cria um novo com os valores padrao.
+- Depois de salvar: botao direito no icone > Sair, e abra de novo clicando duas vezes em caixa.pyw.
+
+
+INICIAR COM O WINDOWS (manual, se o instalar.bat nao conseguir)
+- Aperte Win + R, digite shell:startup e Enter.
+- Crie nessa pasta um atalho para o arquivo caixa.pyw (o instalar.bat faz isso sozinho, criando o arquivo PainelDoCaixa.vbs).
+
+
+REMOVER
+- Botao direito no icone > Sair.
+- Win + R, digite shell:startup, apague o arquivo PainelDoCaixa.vbs.
+- Apague a pasta do programa.
+
+
+SE ALGO DER ERRADO
+- Abra o arquivo erro.log (fica na mesma pasta) e me envie o conteudo.
+- Atualizando de uma versao anterior: copie os arquivos novos por cima, feche o programa (icone > Sair) e abra de
+  novo. Se as frases novas nao aparecerem, e porque o config.json antigo guarda as frases antigas: abra
+  Configuracoes > Restaurar padroes (ou apague o config.json).
+- Se o icone da bandeja nao aparecer, aparece um botao "Caixa" no canto inferior esquerdo da tela;
+  clicar nele abre o checklist. Para ter o icone, rode no Prompt de Comando: py -m pip install pystray pillow

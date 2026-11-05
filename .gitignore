@@ -1,0 +1,10 @@
+config.json
+estado.json
+placar.json
+historico/
+envios_pendentes.json
+erro.log
+__pycache__/
+build/
+dist/
+*.spec
