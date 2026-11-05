@@ -375,14 +375,30 @@ def abrir(app):
             return ""
         return _nv.link_lider({"lider_url": V["nv_lider"].get(), "nuvem_url": V["nv_url"].get(), "nuvem_codigo": V["nv_cod"].get()})
 
+    link_var = tk.StringVar(value="")
+
     def copiar():
         l = link_atual()
         if not l:
             res_nv.set("Preencha o endereço do Firebase, o código e o endereço da página do líder.")
             return
-        w.clipboard_clear()
-        w.clipboard_append(l)
-        res_nv.set("Link copiado! Mande para o líder pelo WhatsApp e peça para abrir no celular e adicionar à tela inicial.")
+        link_var.set(l)
+        try:
+            w.clipboard_clear()
+            w.clipboard_append(l)
+            w.update()
+        except Exception:
+            pass
+        res_nv.set("Link copiado. Se ao colar não aparecer nada, selecione o link na caixa abaixo (clique e Ctrl+A, Ctrl+C) e cole no WhatsApp.")
+
+    def abrir_no_navegador():
+        import webbrowser
+        l = link_atual()
+        if not l:
+            res_nv.set("Preencha o endereço do Firebase, o código e o endereço da página do líder.")
+            return
+        link_var.set(l)
+        webbrowser.open(l)
 
     def testar_nv():
         if not _nv:
@@ -430,6 +446,8 @@ def abrir(app):
     ttk.Button(t9, text="Testar conexão", command=testar_nv).grid(row=4, column=0, sticky="w", pady=(10, 0))
     ttk.Button(t9, text="Copiar link do líder", command=copiar).grid(row=4, column=1, sticky="w", pady=(10, 0), padx=10)
     ttk.Button(t9, text="Testar aviso no celular", command=testar_nt).grid(row=7, column=0, sticky="w", pady=(10, 0))
+    ttk.Button(t9, text="Abrir página do líder aqui", command=abrir_no_navegador).grid(row=4, column=2, sticky="w", pady=(10, 0))
+    ttk.Entry(t9, textvariable=link_var, width=70, state="readonly").grid(row=10, column=0, columnspan=3, sticky="w", pady=(8, 0))
     ttk.Label(t9, textvariable=res_nv, wraplength=700, justify="left").grid(row=8, column=0, columnspan=3, sticky="w", pady=(8, 0))
     ttk.Label(t9, text="Como funciona: o caixa marca a tarefa e ela aparece na hora na página do líder. O líder toca em \"Conferido\" ou "
                        "\"Não estava feito\"; se não estava, os pontos são tirados e a tarefa volta para a lista do caixa. "
