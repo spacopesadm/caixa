@@ -16,6 +16,8 @@ import json
 import math
 import os
 import queue
+import re
+import uuid
 import random
 import socket
 import subprocess
@@ -44,6 +46,9 @@ try:
 except Exception:
     nuvem = None
 
+NUVEM_URL_PADRAO = "https://caixa-spaco-pes-default-rtdb.firebaseio.com"
+LIDER_URL_PADRAO = "https://spacopesadm.github.io/caixa/"
+PORTA = int(os.environ.get("CAIXA_PORTA", "47653"))
 FROZEN = bool(getattr(sys, "frozen", False))      # True quando roda como PainelDoCaixa.exe
 if FROZEN:
     BASE = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "PainelDoCaixa")   # dados ficam aqui
@@ -53,6 +58,9 @@ if FROZEN:
         BASE = os.path.dirname(sys.executable)
 else:
     BASE = os.path.dirname(os.path.abspath(__file__))
+if os.environ.get("CAIXA_DADOS"):        # só para testes
+    BASE = os.environ["CAIXA_DADOS"]
+    os.makedirs(BASE, exist_ok=True)
 CONFIG_FILE = os.path.join(BASE, "config.json")
 STATE_FILE = os.path.join(BASE, "estado.json")
 LOG_FILE = os.path.join(BASE, "erro.log")
@@ -91,12 +99,13 @@ DEFAULT_CONFIG = {
     "bonus_combo_max": 0,
     "limite_pontos_conferencia_dia": 4,
     "versao_pontos": 2,
-    "nuvem_ativa": False,
-    "nuvem_url": "",
+    "nuvem_url": NUVEM_URL_PADRAO,
     "nuvem_codigo": "",
-    "lider_url": "",
-    "ntfy_ativo": False,
-    "ntfy_topico": "",
+    "lider_url": LIDER_URL_PADRAO,
+    "ntfy_ativo": True,
+    "maquina_id": "",
+    "maquina_nome": "",
+    "cfg_rev": 0,
     "bonus_dia_completo": 5,
     "meta_semana_pontos": 150,
     "premio_semana": "Prêmio da semana: combine com o patrão!",
@@ -255,6 +264,15 @@ def load_config():
     if not isinstance(raw, dict):
         raw = {}
     cfg.update(raw)
+    if not cfg.get("nuvem_url"):
+        cfg["nuvem_url"] = NUVEM_URL_PADRAO
+    if not cfg.get("lider_url"):
+        cfg["lider_url"] = LIDER_URL_PADRAO
+    if not cfg.get("maquina_id"):
+        cfg["maquina_id"] = uuid.uuid4().hex[:10]
+        cfg["maquina_nome"] = os.environ.get("COMPUTERNAME", "") or socket.gethostname()
+        if raw:
+            save_json(CONFIG_FILE, cfg)
     if raw.get("versao_pontos", 1) < 2:      # sistema de pontos antigo (valores altos e combo): troca pelo novo
         for k in ("pontos_no_prazo", "pontos_atraso_leve", "pontos_atrasado", "bonus_combo_max", "bonus_dia_completo",
                   "meta_semana_pontos", "penalidade_pontos", "penalidade_max_por_tarefa", "penalidade_nao_feito",
@@ -275,10 +293,16 @@ def today():
     return dt.date.today().isoformat()
 
 
+def chave_log(e):
+    """Identificador estável de uma tarefa feita (igual em todos os computadores e na página do líder)."""
+    c = lambda t: re.sub(r"[^A-Za-z0-9_-]", "-", str(t))
+    return "%s_%s_%d" % (c(e["k"]), c(e["id"]), int(e["done"]))
+
+
 def fresh_state():
     return {"date": today(), "am": {}, "cx": {}, "last": {}, "shown": 0, "ok": 0,
             "log": [], "pausas": 0, "celebrado": False, "lem": {}, "pontos": 0, "combo": 0,
-            "marco50": False, "bonus_dia": False, "val_vistas": {}, "rejeitadas": [],
+            "marco50": False, "bonus_dia": False, "val_vistas": {}, "rejeitadas": [], "bonus": {}, "removidas": [],
             "pts_func": {}, "penal": [], "func_manual": None, "relatorio_gerado": False, "sched": {}}
 
 
@@ -423,6 +447,9 @@ class App:
         self.hold_until = 0
         self.cmd_q = queue.Queue()
         self.nuvem = None
+        self.enviado = set()
+        self.maquinas = {}
+        self.fim_alvo = None
         self.snap_agendado = False
         try:
             if nuvem is not None:
@@ -444,6 +471,7 @@ class App:
         self.start_tray()
         self.root.after(1000, self.tick)
         self.root.after(8000, self.startup_tasks)
+        self.root.after(1500, self.primeira_execucao)
         self.root.after(3000, self.push_snapshot)
 
     # ---- tempo / fases
@@ -492,8 +520,261 @@ class App:
             return
         try:
             self.nuvem.enviar(self.state["date"], self.build_snapshot())
+            self.empurrar_estado()
         except Exception:
             log("snapshot: " + traceback.format_exc())
+
+    # ---- vários computadores na mesma loja: cada um grava só o que é novo e lê o que os outros fizeram
+    def empurrar_estado(self):
+        st, dia = self.state, self.state["date"]
+        base, itens, sent = "estado/%s" % dia, [], self.enviado
+
+        def novo(chave, caminho, valor):
+            if chave not in sent:
+                sent.add(chave)
+                itens.append((caminho, valor))
+        for e in st["log"]:
+            k = chave_log(e)
+            novo(("log", dia, k), "%s/log/%s" % (base, k), e)
+        for k in st.get("removidas", []):
+            novo(("rm", dia, k), "%s/removidas/%s" % (base, k), True)
+        for p in st.get("penal", []):
+            if not p.get("id"):
+                p["id"] = "p" + uuid.uuid4().hex[:10]
+            novo(("pn", dia, p["id"]), "%s/penal/%s" % (base, p["id"]), p)
+        for f, n in st.get("bonus", {}).items():
+            novo(("bn", dia, f, n), "%s/bonus/%s" % (base, nuvem.chave(f)), n)
+        for f in ("bonus_dia", "celebrado", "relatorio_gerado", "marco50"):
+            if st.get(f):
+                novo(("fl", dia, f), "%s/flags/%s" % (base, f), True)
+        for r in st.get("rejeitadas", []):
+            if r.get("key"):
+                novo(("rj", dia, r["key"]), "%s/rejeitadas/%s" % (base, r["key"]), r)
+        for k, t in st.get("val_vistas", {}).items():
+            novo(("vv", dia, k), "%s/val/%s" % (base, k), t if t is not None else 0)
+        self.nuvem.escrever(itens)
+
+    def reflag(self):
+        """Refaz os marcadores 'feito' (am/cx/lem/last) a partir do registro."""
+        st = self.state
+        bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}
+        mx = {}
+        for e in st["log"]:
+            b = bucket.get(e["k"])
+            if b:
+                mx[(b, str(e["id"]))] = max(mx.get((b, str(e["id"])), 0), e["done"])
+        for (b, i), t in mx.items():
+            if (st[b].get(i) or 0) < t:
+                st[b][i] = t
+        inv = {v: k for k, v in bucket.items()}
+        for b in ("am", "cx", "lem", "last"):
+            for i, v in list(st[b].items()):
+                if v and (b, str(i)) not in mx:
+                    pref = "%s_%s_" % (inv[b], re.sub(r"[^A-Za-z0-9_-]", "-", str(i)))
+                    if any(rk.startswith(pref) for rk in st.get("removidas", [])):
+                        st[b][i] = 0
+
+    def merge_remoto(self, dia, rem, maquinas):
+        self.maquinas = maquinas or {}
+        if dia != self.state["date"] or not isinstance(rem, dict):
+            return
+        st, sent, mudou = self.state, self.enviado, False
+        rm = st.setdefault("removidas", [])
+        for k in (rem.get("removidas") or {}):
+            if k not in rm:
+                rm.append(k)
+                mudou = True
+            sent.add(("rm", dia, k))
+        rms = set(rm)
+        antes = len(st["log"])
+        st["log"] = [e for e in st["log"] if chave_log(e) not in rms]
+        mudou = mudou or len(st["log"]) != antes
+        tem = {chave_log(e) for e in st["log"]}
+        for k, e in (rem.get("log") or {}).items():
+            if k in rms or k in tem or not isinstance(e, dict) or "k" not in e or "done" not in e:
+                continue
+            st["log"].append(e)
+            sent.add(("log", dia, k))
+            mudou = True
+        st["log"].sort(key=lambda x: x["done"])
+        ids = {p.get("id") for p in st.get("penal", [])}
+        for i, p in (rem.get("penal") or {}).items():
+            if isinstance(p, dict) and i not in ids:
+                p.setdefault("id", i)
+                st.setdefault("penal", []).append(p)
+                sent.add(("pn", dia, i))
+                mudou = True
+        for f, n in (rem.get("bonus") or {}).items():
+            try:
+                if int(n) > int(st["bonus"].get(f, 0)):
+                    st["bonus"][f] = int(n)
+                    mudou = True
+            except Exception:
+                pass
+        gerado_antes = bool(st.get("relatorio_gerado"))
+        for f in (rem.get("flags") or {}):
+            if f in ("bonus_dia", "celebrado", "relatorio_gerado", "marco50") and not st.get(f):
+                st[f] = True
+                mudou = True
+        rj = st.setdefault("rejeitadas", [])
+        for k, r in (rem.get("rejeitadas") or {}).items():
+            if isinstance(r, dict) and not any(x.get("key") == k for x in rj):
+                r.setdefault("key", k)
+                rj.append(r)
+                mudou = True
+        for k, t in (rem.get("val") or {}).items():
+            if k not in st["val_vistas"]:
+                st["val_vistas"][k] = t
+                mudou = True
+        if not mudou:
+            return
+        self.reflag()
+        self.recalc_points()
+        self.update_placar()
+        if st.get("relatorio_gerado") and not gerado_antes:      # outro computador já fechou o dia
+            for pid, p in list(self.pend.items()):
+                self.close_pending_pop(p)
+                self.pend.pop(pid, None)
+        save_json(STATE_FILE, st)
+        self.refresh()
+        self.sync_soon()
+
+    # ---- ligar este computador a uma loja (primeiro computador cria; os outros entram com o código)
+    def conectar_loja(self, codigo, criar):
+        self.cfg["nuvem_codigo"] = nuvem.normalizar_codigo(codigo)
+        self.cfg["cfg_rev"] = int(time.time() * 1000) if criar else 0     # quem entra recebe as configurações da loja
+        save_json(CONFIG_FILE, self.cfg)
+        self.enviado.clear()
+        if criar:
+            self.empurrar_config()
+        self.push_snapshot()
+
+    def arquivo_loja(self):
+        for pasta in (os.path.dirname(sys.executable) if FROZEN else None, BASE, os.getcwd()):
+            if pasta and os.path.isfile(os.path.join(pasta, "loja.txt")):
+                try:
+                    with open(os.path.join(pasta, "loja.txt"), encoding="utf-8-sig") as f:
+                        return nuvem.normalizar_codigo(f.read().strip())
+                except OSError:
+                    pass
+        return ""
+
+    def primeira_execucao(self):
+        if nuvem is None or self.cfg.get("nuvem_codigo") or self.cfg.get("wizard_adiado"):
+            return
+        cod = self.arquivo_loja()
+        if cod:
+            def ver():
+                try:
+                    ok = nuvem.verificar_loja(self.cfg["nuvem_url"], cod) is not None
+                except Exception:
+                    ok = False
+                self.cmd_q.put(("loja_arquivo", cod, ok))
+            threading.Thread(target=ver, daemon=True).start()
+            return
+        self.open_wizard()
+
+    def open_wizard(self):
+        if nuvem is None:
+            return
+        if getattr(self, "wiz", None) is not None:
+            try:
+                if self.wiz.winfo_exists():
+                    self.wiz.lift()
+                    return
+            except tk.TclError:
+                pass
+        w = self.wiz = tk.Toplevel(self.root)
+        w.title("Conectar este computador à loja")
+        w.configure(bg=BG)
+        w.attributes("-topmost", True)
+        w.geometry("+%d+%d" % (max(40, self.root.winfo_screenwidth() // 2 - 260), 90))
+        tk.Label(w, text="Conectar à loja", font=(FONT, 16, "bold"), bg=BG, fg=INK).pack(padx=28, pady=(20, 4), anchor="w")
+        tk.Label(w, text="Assim o líder vê tudo no celular e os computadores da loja ficam sincronizados:\n"
+                         "o que for marcado em um aparece nos outros.", font=(FONT, 10), bg=BG, fg=GREY, justify="left").pack(padx=28, anchor="w")
+        msg = tk.StringVar(value="")
+
+        def criar():
+            cod = nuvem.novo_codigo()
+            self.conectar_loja(cod, True)
+            msg.set("Loja criada! Código: %s\nNos outros computadores escolha \"Entrar com o código\". Em Configurações > Loja e líder tem o QR code do celular." % nuvem.formatar_codigo(cod))
+            tk.Button(w, text="Fechar", command=w.destroy, font=(FONT, 11, "bold"), bg=INK, fg="white", bd=0, padx=16, pady=8).pack(pady=(0, 18))
+            b1.config(state="disabled")
+            b2.config(state="disabled")
+        b1 = tk.Button(w, text="Este é o primeiro computador: criar a loja", command=criar, font=(FONT, 12, "bold"), bg=INK, fg="white",
+                       bd=0, padx=16, pady=10)
+        b1.pack(padx=28, pady=(16, 6), fill="x")
+        tk.Label(w, text="Já existe outro computador? Digite o código da loja (ou copie e cole):", font=(FONT, 10), bg=BG, fg=INK).pack(padx=28, pady=(12, 2), anchor="w")
+        var = tk.StringVar()
+        ent = tk.Entry(w, textvariable=var, font=(FONT, 12), width=44)
+        ent.pack(padx=28, anchor="w")
+
+        def entrar():
+            cod = nuvem.normalizar_codigo(var.get())
+            if len(cod) < 20:
+                msg.set("Código muito curto. Copie o código inteiro do outro computador.")
+                return
+            msg.set("Procurando a loja...")
+            res = []
+
+            def run():
+                try:
+                    res.append(nuvem.verificar_loja(self.cfg["nuvem_url"], cod) is not None)
+                except Exception as e:
+                    res.append(nuvem.erro_amigavel(e))
+            threading.Thread(target=run, daemon=True).start()
+
+            def espera():
+                if not res:
+                    w.after(300, espera)
+                elif res[0] is True:
+                    self.conectar_loja(cod, False)
+                    self.show("Conectado", "Este computador entrou na loja. As configurações vêm do outro computador em instantes.", "tag", 9000, True)
+                    w.destroy()
+                else:
+                    msg.set("Loja não encontrada. Confira o código." if res[0] is False else res[0])
+            espera()
+        b2 = tk.Button(w, text="Entrar com o código", command=entrar, font=(FONT, 11, "bold"), bg=PINK, fg="white", bd=0, padx=14, pady=8)
+        b2.pack(padx=28, pady=(8, 0), anchor="w")
+        tk.Label(w, textvariable=msg, font=(FONT, 10), bg=BG, fg=INK, wraplength=440, justify="left").pack(padx=28, pady=(10, 4), anchor="w")
+
+        def adiar():
+            self.cfg["wizard_adiado"] = True
+            save_json(CONFIG_FILE, self.cfg)
+            w.destroy()
+        tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
+
+    # ---- configurações iguais em todos os computadores
+    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios"}
+
+    def empurrar_config(self):
+        if self.nuvem is None or not self.nuvem.ativo():
+            return
+        dados = {k: v for k, v in self.cfg.items() if k not in self.CFG_LOCAIS}
+        self.nuvem.escrever([("config", {"rev": int(self.cfg.get("cfg_rev", 0)), "json": json.dumps(dados, ensure_ascii=False)})])
+
+    def config_remota(self, c):
+        try:
+            rev = int(c.get("rev", 0))
+            if rev <= int(self.cfg.get("cfg_rev", 0)):
+                return
+            dados = json.loads(c.get("json") or "{}")
+        except Exception:
+            return
+        novo = dict(self.cfg)
+        novo.update({k: v for k, v in dados.items() if k not in self.CFG_LOCAIS})
+        novo["cfg_rev"] = rev
+        self.apply_config(novo, remoto=True)
+
+    def minha_vez_relatorio(self):
+        """Posição deste computador entre os que estão ligados. O primeiro gera o relatório, os outros só entram se ele falhar."""
+        agora = time.time() * 1000
+        eu = self.cfg.get("maquina_id", "")
+        vivos = {eu}
+        for m, v in (getattr(self, "maquinas", None) or {}).items():
+            if isinstance(v, dict) and agora - float(v.get("ts", 0)) < 150000:
+                vivos.add(m)
+        return sorted(vivos).index(eu)
 
     def build_snapshot(self):
         st, cfg = self.state, self.cfg
@@ -544,16 +825,19 @@ class App:
                 continue
             # o líder disse que NÃO estava feito: tira os pontos, desconta a penalidade e reabre a tarefa
             fid = e.get("func")
+            self.marcar_removida(e)
             del lg[idx]
-            self.add_points(-max(0, int(e.get("pts", 0))), fid or "_")
             pen = int(self.cfg.get("penalidade_nao_feito", 2))
-            self.penalize(e["nome"], pen, "Líder: não estava feito", fid)
+            self.penalize(e["nome"], pen, "Líder: não estava feito", fid, "rej-" + k)
+            self.add_points(0, fid or "_")
             kind, iid = e["k"], str(e["id"])
             bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}.get(kind)
             if bucket:
                 self.state[bucket][iid] = 0
-            self.state.setdefault("rejeitadas", []).append({"nome": e["nome"], "func": fid, "quando": int(time.time() * 1000),
-                                                            "nota": v.get("nota", ""), "pts": max(0, int(e.get("pts", 0))) + pen})
+            rj = self.state.setdefault("rejeitadas", [])
+            if not any(x.get("key") == k for x in rj):
+                rj.append({"key": k, "nome": e["nome"], "func": fid, "quando": int(time.time() * 1000),
+                           "nota": v.get("nota", ""), "pts": max(0, int(e.get("pts", 0))) + pen})
             nota = (" Motivo: %s." % v["nota"]) if v.get("nota") else ""
             self.show("Líder: não estava feito", "%s. Faça de verdade e marque de novo. -%d pontos.%s" % (e["nome"], max(0, int(e.get("pts", 0))) + pen, nota),
                       "banner", 20000, True)
@@ -933,7 +1217,7 @@ class App:
             res = self.resolved(p, m)
             if m >= p["until"] or res:
                 if m >= p["until"] and p["kind"] != "am" and not self.p_done(p):
-                    self.penalize(self.task_name(p["kind"], p["arg"]), self.cfg.get("penalidade_nao_feito", 2), "Não feito", p.get("fid"))
+                    self.penalize(self.task_name(p["kind"], p["arg"]), self.cfg.get("penalidade_nao_feito", 2), "Não feito", p.get("fid"), "nf-%s-%s" % (p["kind"], p["arg"]))
                 self.close_pending_pop(p)
                 self.pend.pop(pid, None)
                 continue
@@ -993,7 +1277,7 @@ class App:
             self.notify("Quase hora do almoço", "Confira o caixa antes de sair")
         if (ph == "end" and self.cfg.get("gerar_relatorio_no_fim", True) and not self.state.get("relatorio_gerado")
                 and (self.state["log"] or self.state.get("shown")) and self.once("fim")):
-            self.end_of_day()
+            self.fim_alvo = time.time() + 25 * self.minha_vez_relatorio()
         if m == a[1] and self.once("lunch"):
             self.notify("Almoço", "Bom almoço! Volta às %s" % self.cfg["tarde_horario"][0], "banner", 7000)
         # caixa de hora em hora (também pega quem abre o app no meio da hora)
@@ -1183,20 +1467,24 @@ class App:
         pen = self.penalty_for(elapsed_seconds / 60.0)
         return "  ·  já perdeu %d pontos" % pen if pen > 0 else ""
 
-    def penalize(self, nome, n, motivo, fid=None):
+    def penalize(self, nome, n, motivo, fid=None, pid=None):
         n = int(n or 0)
         if n <= 0 or not self.cfg.get("penalidade_ativa", True):
             return
         fid = fid or "_"
-        self.state.setdefault("penal", []).append({"nome": nome, "pen": n, "motivo": motivo, "func": fid, "t": time.time()})
-        self.add_points(-n, fid)
+        pid = pid or "p" + uuid.uuid4().hex[:10]
+        pl = self.state.setdefault("penal", [])
+        if any(x.get("id") == pid for x in pl):      # já aplicada (aqui ou em outro computador)
+            return
+        pl.append({"id": pid, "nome": nome, "pen": n, "motivo": motivo, "func": fid, "t": time.time()})
+        self.add_points(0, fid)
         self.save()
 
     def settle_pendings(self, m):
         """No fim do dia: o que ficou pendente perde pontos e as pendências fecham."""
         for pid, p in list(self.pend.items()):
             if p["kind"] != "am" and not self.p_done(p):
-                self.penalize(self.task_name(p["kind"], p["arg"]), self.cfg.get("penalidade_nao_feito", 2), "Não feito", p.get("fid"))
+                self.penalize(self.task_name(p["kind"], p["arg"]), self.cfg.get("penalidade_nao_feito", 2), "Não feito", p.get("fid"), "nf-%s-%s" % (p["kind"], p["arg"]))
             self.close_pending_pop(p)
             self.pend.pop(pid, None)
 
@@ -1224,28 +1512,48 @@ class App:
             "nivel": p.get("maxlevel", 0) if p else 0, "adiou": p.get("snoozes", 0) if p else 0,
             "via": via, "pts": pts, "base": base, "pen": pen, "func": fid})
         self.last_award = (pts, self.state["combo"], pen)
-        self.add_points(pts, fid)
+        self.add_points(0, fid)
         self.save()
+
+    def marcar_removida(self, e):
+        k = chave_log(e)
+        rm = self.state.setdefault("removidas", [])
+        if k not in rm:
+            rm.append(k)
 
     def unrecord(self, kind, arg):
         lg = self.state["log"]
         for i in range(len(lg) - 1, -1, -1):
             if lg[i]["k"] == kind and lg[i]["id"] == str(arg):
                 pts, fid = lg[i].get("pts", 0), lg[i].get("func") or "_"
+                self.marcar_removida(lg[i])
                 del lg[i]
                 self.state["combo"] = 0
-                self.add_points(-max(0, pts), fid)
+                self.add_points(0, fid)
                 break
         self.save()
 
     # pontos, sequência e meta da semana (por funcionário)
-    def add_points(self, n, fid=None):
+    def recalc_points(self):
+        """Pontos = soma do que está no registro do dia - penalidades + bônus. Assim todos os computadores chegam ao mesmo número."""
+        st, pf = self.state, {}
+        for e in st["log"]:
+            f = e.get("func") or "_"
+            pf[f] = pf.get(f, 0) + int(e.get("pts", 0))
+        for p in st.get("penal", []):
+            f = p.get("func") or "_"
+            pf[f] = pf.get(f, 0) - int(p.get("pen", 0))
+        for f, n in st.get("bonus", {}).items():
+            pf[f] = pf.get(f, 0) + int(n)
+        st["pts_func"] = {f: max(0, v) for f, v in pf.items()}
+        st["pontos"] = sum(st["pts_func"].values())
+
+    def add_points(self, n=0, fid=None):
         fid = fid or self.emp_id()
-        pf = self.state.setdefault("pts_func", {})
-        pf[fid] = max(0, int(pf.get(fid, 0)) + int(n))
-        self.state["pontos"] = sum(pf.values())
+        antes = self.state.get("pts_func", {}).get(fid, 0)
+        self.recalc_points()
         self.update_placar()
-        if n > 0:
+        if self.state["pts_func"].get(fid, 0) > antes:
             self.check_goal(fid)
 
     def update_placar(self):
@@ -1324,8 +1632,10 @@ class App:
         self.state["celebrado"] = True
         b = int(self.cfg.get("bonus_dia_completo", 5))
         rec = [f for f, v in self.state.get("pts_func", {}).items() if v > 0] or [self.emp_id()]
+        bn = self.state.setdefault("bonus", {})
         for f in rec:
-            self.add_points(b, f)
+            bn[f] = b
+            self.add_points(0, f)
         self.save()
         return "  +%d pontos de bônus%s! Sequência: %s." % (b, " para cada um" if len(rec) > 1 else "", self.streak_txt(self.score_fid()))
 
@@ -1584,7 +1894,23 @@ class App:
         self.process_envios()
 
     def on_message(self, c):
-        if c[0] == "validacoes":
+        if c[0] == "remoto":
+            try:
+                self.merge_remoto(c[1], c[2], c[3])
+            except Exception:
+                log("remoto: " + traceback.format_exc())
+        elif c[0] == "loja_arquivo":
+            if c[2]:
+                self.conectar_loja(c[1], False)
+                self.show("Conectado", "Este computador entrou na loja pelo arquivo loja.txt.", "tag", 9000, True)
+            else:
+                self.open_wizard()
+        elif c[0] == "config_remota":
+            try:
+                self.config_remota(c[1])
+            except Exception:
+                log("config_remota: " + traceback.format_exc())
+        elif c[0] == "validacoes":
             try:
                 self.on_validacoes(c[1], c[2])
             except Exception:
@@ -2018,10 +2344,14 @@ class App:
             log("configuracoes: " + traceback.format_exc())
             self.show("Configurações", "Não consegui abrir as configurações. Veja o arquivo erro.log.", "tag", 12000, test=True)
 
-    def apply_config(self, new):
+    def apply_config(self, new, remoto=False):
         self.cfg = new
+        if not remoto:
+            self.cfg["cfg_rev"] = int(time.time() * 1000)
         self.apply_day()
         save_json(CONFIG_FILE, self.cfg)
+        if not remoto:
+            self.empurrar_config()
         self.next_random = self.sched_random()
         self.fired = {k for k in self.fired if not k.startswith("lem")}
         if self.win is not None and self.win.winfo_exists():
@@ -2039,6 +2369,10 @@ class App:
             if m != self.last_min:
                 self.last_min = m
                 self.on_minute(d)
+            if self.fim_alvo and time.time() >= self.fim_alvo:
+                self.fim_alvo = None
+                if not self.state.get("relatorio_gerado"):
+                    self.end_of_day()
             self.tick_pending(m)
             self.tick_random(m)
             self.tick_hold()
@@ -2051,8 +2385,63 @@ class App:
             pass
 
 
+def pasta_instalacao():
+    return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "PainelDoCaixa")
+
+
+def falar_com_instancia(msg, espera=0.0):
+    """Manda uma palavra para o programa que já está rodando. Devolve True se havia um."""
+    try:
+        c = socket.create_connection(("127.0.0.1", PORTA), timeout=2)
+        c.sendall(msg)
+        c.close()
+        if espera:
+            time.sleep(espera)
+        return True
+    except OSError:
+        return False
+
+
+def instalar_e_abrir():
+    """Versão .exe: ao abrir de qualquer pasta, copia-se para AppData, registra o início com o Windows e abre dali.
+    Assim basta baixar o .exe e dar dois cliques; baixar uma versão nova e abrir também atualiza."""
+    if not (FROZEN and sys.platform == "win32") or os.environ.get("CAIXA_DADOS"):
+        return False
+    try:
+        import shutil
+        destino_dir = pasta_instalacao()
+        destino = os.path.join(destino_dir, "PainelDoCaixa.exe")
+        atual = os.path.abspath(sys.executable)
+        if os.path.normcase(atual) == os.path.normcase(destino):
+            return False
+        os.makedirs(destino_dir, exist_ok=True)
+        if falar_com_instancia(b"sair"):          # fecha a versão antiga para poder trocar o arquivo
+            for _ in range(20):
+                time.sleep(0.5)
+                try:
+                    probe = socket.socket()
+                    probe.bind(("127.0.0.1", PORTA))
+                    probe.close()
+                    break
+                except OSError:
+                    continue
+        for _ in range(10):
+            try:
+                shutil.copy2(atual, destino)
+                break
+            except OSError:
+                time.sleep(0.5)
+        else:
+            return False
+        subprocess.Popen([destino], cwd=destino_dir, creationflags=0x00000008 | 0x00000200)
+        return True
+    except Exception:
+        log("instalar: " + traceback.format_exc())
+        return False
+
+
 def ensure_autostart():
-    """Versão .exe: registra o programa para abrir sozinho com o Windows (sem precisar de instalador)."""
+    """Versão .exe: registra o programa para abrir sozinho com o Windows."""
     if not (FROZEN and sys.platform == "win32"):
         return
     try:
@@ -2063,11 +2452,33 @@ def ensure_autostart():
         log("autostart: " + traceback.format_exc())
 
 
+def ouvir_instancia(lock, app):
+    """O socket de instância única também recebe pedidos de outras cópias: 'abrir' (mostra a janela) e 'sair' (atualização)."""
+    def run():
+        try:
+            lock.listen(5)
+            while True:
+                conn, _ = lock.accept()
+                try:
+                    conn.settimeout(1)
+                    dado = conn.recv(16)
+                    conn.close()
+                except OSError:
+                    continue
+                app.cmd_q.put("quit" if dado.startswith(b"sair") else "open")
+        except OSError:
+            return
+    threading.Thread(target=run, daemon=True).start()
+
+
 def main():
+    if instalar_e_abrir():
+        return
     try:  # uma cópia só
         lock = socket.socket()
-        lock.bind(("127.0.0.1", 47653))
+        lock.bind(("127.0.0.1", PORTA))
     except OSError:
+        falar_com_instancia(b"abrir")          # já está rodando: só mostra a janela
         return
     if sys.platform == "win32":
         try:
@@ -2077,6 +2488,7 @@ def main():
     ensure_autostart()
     try:
         app = App()
+        ouvir_instancia(lock, app)
         app.root.mainloop()
     except Exception:
         log("main: " + traceback.format_exc())

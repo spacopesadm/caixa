@@ -5,6 +5,7 @@ Aberto pelo botão "Configurações" do checklist ou pelo ícone perto do relóg
 Tudo o que for salvo aqui vale na hora e fica gravado no config.json.
 """
 import copy
+import os
 import re
 import threading
 import tkinter as tk
@@ -348,111 +349,84 @@ def abrir(app):
                        "a cada 10 minutos.",
               foreground=GREY, wraplength=700, justify="left").grid(row=12, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
-    # ---------------- Líder e celular (nuvem)
-    t9 = tab("Líder e celular")
-    marca(t9, 0, "Enviar as tarefas para a nuvem para o líder ver e validar no celular", "nv_on", cfg.get("nuvem_ativa", False))
-    campo(t9, 1, "Endereço do Firebase (Realtime Database)", "nv_url", cfg.get("nuvem_url", ""), 44)
-    campo(t9, 2, "Código secreto da loja", "nv_cod", cfg.get("nuvem_codigo", ""), 44)
-    campo(t9, 3, "Endereço da página do líder", "nv_lider", cfg.get("lider_url", ""), 44)
-    marca(t9, 5, "Avisar o líder no celular (app ntfy) quando uma tarefa ficar urgente", "nt_on", cfg.get("ntfy_ativo", False))
-    campo(t9, 6, "Tópico do ntfy (o líder assina este nome)", "nt_top", cfg.get("ntfy_topico", ""), 44)
+    # ---------------- Loja e líder (nuvem automática)
+    t9 = tab("Loja e líder")
     try:
         import nuvem as _nv
     except Exception:
         _nv = None
+    cod_atual = (cfg.get("nuvem_codigo") or "").strip()
     res_nv = tk.StringVar(value="")
+    ttk.Label(t9, text="Conexão da loja", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=4, sticky="w")
+    if not cod_atual:
+        ttk.Label(t9, text="Este computador ainda não está conectado à loja. Conecte para o líder ver as tarefas no celular "
+                           "e para os computadores da loja ficarem sincronizados.", foreground=GREY, wraplength=720,
+                  justify="left").grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 8))
+        ttk.Button(t9, text="Conectar agora", command=lambda: (w.destroy(), app.open_wizard())).grid(row=2, column=0, sticky="w")
+    else:
+        ttk.Label(t9, text="Código da loja (use em outros computadores):").grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 2))
+        cod_txt = _nv.formatar_codigo(cod_atual) if _nv else cod_atual
+        ec = ttk.Entry(t9, width=60)
+        ec.insert(0, cod_txt)
+        ec.configure(state="readonly")
+        ec.grid(row=2, column=0, columnspan=3, sticky="w")
 
-    def gerar_cod():
-        if V["nv_cod"].get().strip() and not messagebox.askyesno("Novo código", "Trocar o código faz a página do líder atual parar de funcionar. Continuar?", parent=w):
-            return
-        V["nv_cod"].set(_nv.novo_codigo() if _nv else "")
-        if not V["nt_top"].get().strip():
-            V["nt_top"].set("caixa-" + V["nv_cod"].get()[:12])
-    ttk.Button(t9, text="Gerar código", command=gerar_cod).grid(row=2, column=2, sticky="w", padx=6)
-
-    def link_atual():
-        if not _nv:
-            return ""
-        return _nv.link_lider({"lider_url": V["nv_lider"].get(), "nuvem_url": V["nv_url"].get(), "nuvem_codigo": V["nv_cod"].get()})
-
-    link_var = tk.StringVar(value="")
-
-    def copiar():
-        l = link_atual()
-        if not l:
-            res_nv.set("Preencha o endereço do Firebase, o código e o endereço da página do líder.")
-            return
-        link_var.set(l)
-        try:
+        def copiar_cod():
             w.clipboard_clear()
-            w.clipboard_append(l)
+            w.clipboard_append(cod_atual)
             w.update()
+            res_nv.set("Código copiado. Cole no outro computador, na tela Conectar à loja.")
+
+        def salvar_txt():
+            try:
+                desk = os.path.join(os.path.expanduser("~"), "Desktop")
+                pasta = desk if os.path.isdir(desk) else os.path.expanduser("~")
+                with open(os.path.join(pasta, "loja.txt"), "w", encoding="utf-8") as f:
+                    f.write(cod_atual)
+                res_nv.set("Arquivo loja.txt salvo na Área de Trabalho. Coloque-o na mesma pasta do PainelDoCaixa.exe no outro computador "
+                           "e ele conecta sozinho.")
+            except OSError as e:
+                res_nv.set("Não consegui salvar: %s" % e)
+        ttk.Button(t9, text="Copiar código", command=copiar_cod).grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ttk.Button(t9, text="Salvar arquivo loja.txt", command=salvar_txt).grid(row=3, column=1, sticky="w", pady=(6, 0), padx=8)
+        ttk.Button(t9, text="Entrar em outra loja...", command=lambda: (w.destroy(), app.open_wizard())).grid(row=3, column=2, sticky="w", pady=(6, 0))
+
+        link = _nv.link_lider(cfg) if _nv else ""
+        ttk.Label(t9, text="Celular do líder", font=(FONT, 11, "bold")).grid(row=4, column=0, columnspan=4, sticky="w", pady=(16, 2))
+        ttk.Label(t9, text="Aponte a câmera do celular para o QR code. A página abre já conectada. Depois toque nos 3 pontinhos do "
+                           "Chrome > Adicionar à tela inicial.", foreground=GREY, wraplength=480, justify="left").grid(row=5, column=0, columnspan=2, sticky="nw")
+        el = ttk.Entry(t9, width=60)
+        el.insert(0, link)
+        el.configure(state="readonly")
+        el.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+        def copiar_link():
+            w.clipboard_clear()
+            w.clipboard_append(link)
+            w.update()
+            res_nv.set("Link copiado. Mande para o líder pelo WhatsApp.")
+
+        def abrir_link():
+            import webbrowser
+            webbrowser.open(link)
+        ttk.Button(t9, text="Copiar link", command=copiar_link).grid(row=7, column=0, sticky="w", pady=(6, 0))
+        ttk.Button(t9, text="Abrir a página aqui", command=abrir_link).grid(row=7, column=1, sticky="w", pady=(6, 0), padx=8)
+        try:
+            import base64
+            import io
+            import qrcode
+            img = qrcode.make(link, box_size=4, border=2)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            w._qr = tk.PhotoImage(data=base64.b64encode(buf.getvalue()).decode("ascii"))
+            tk.Label(t9, image=w._qr, bd=0).grid(row=4, column=3, rowspan=4, sticky="ne", padx=(24, 0))
         except Exception:
             pass
-        res_nv.set("Link copiado. Se ao colar não aparecer nada, selecione o link na caixa abaixo (clique e Ctrl+A, Ctrl+C) e cole no WhatsApp.")
-
-    def abrir_no_navegador():
-        import webbrowser
-        l = link_atual()
-        if not l:
-            res_nv.set("Preencha o endereço do Firebase, o código e o endereço da página do líder.")
-            return
-        link_var.set(l)
-        webbrowser.open(l)
-
-    def testar_nv():
-        if not _nv:
-            res_nv.set("O arquivo nuvem.py não está na pasta do programa.")
-            return
-        res_nv.set("Testando...")
-        saida = []
-
-        def run():
-            try:
-                _nv.testar_conexao(V["nv_url"].get(), V["nv_cod"].get())
-                saida.append("Conexão com o Firebase funcionando.")
-            except Exception as e:
-                saida.append("Não funcionou: " + _nv.erro_amigavel(e))
-        threading.Thread(target=run, daemon=True).start()
-
-        def espera():
-            if saida:
-                res_nv.set(saida[0])
-            else:
-                w.after(300, espera)
-        espera()
-
-    def testar_nt():
-        top = V["nt_top"].get().strip()
-        if not (_nv and top):
-            res_nv.set("Preencha o tópico do ntfy.")
-            return
-        saida = []
-
-        def run():
-            try:
-                _nv.testar_ntfy(top)
-                saida.append("Aviso de teste enviado. Se o líder assinou o tópico no app ntfy, ele recebe agora.")
-            except Exception as e:
-                saida.append("Não funcionou: " + _nv.erro_amigavel(e))
-        threading.Thread(target=run, daemon=True).start()
-
-        def espera():
-            if saida:
-                res_nv.set(saida[0])
-            else:
-                w.after(300, espera)
-        espera()
-    ttk.Button(t9, text="Testar conexão", command=testar_nv).grid(row=4, column=0, sticky="w", pady=(10, 0))
-    ttk.Button(t9, text="Copiar link do líder", command=copiar).grid(row=4, column=1, sticky="w", pady=(10, 0), padx=10)
-    ttk.Button(t9, text="Testar aviso no celular", command=testar_nt).grid(row=7, column=0, sticky="w", pady=(10, 0))
-    ttk.Button(t9, text="Abrir página do líder aqui", command=abrir_no_navegador).grid(row=4, column=2, sticky="w", pady=(10, 0))
-    ttk.Entry(t9, textvariable=link_var, width=70, state="readonly").grid(row=10, column=0, columnspan=3, sticky="w", pady=(8, 0))
-    ttk.Label(t9, textvariable=res_nv, wraplength=700, justify="left").grid(row=8, column=0, columnspan=3, sticky="w", pady=(8, 0))
-    ttk.Label(t9, text="Como funciona: o caixa marca a tarefa e ela aparece na hora na página do líder. O líder toca em \"Conferido\" ou "
-                       "\"Não estava feito\"; se não estava, os pontos são tirados e a tarefa volta para a lista do caixa. "
-                       "O passo a passo para criar o Firebase está no arquivo LIDER.txt.",
-              foreground=GREY, wraplength=700, justify="left").grid(row=9, column=0, columnspan=3, sticky="w", pady=(12, 0))
+    marca(t9, 9, "Avisar o líder no celular quando uma tarefa ficar urgente (pelo app ntfy)", "nt_on", cfg.get("ntfy_ativo", True))
+    ttk.Label(t9, textvariable=res_nv, wraplength=720, justify="left").grid(row=10, column=0, columnspan=4, sticky="w", pady=(10, 0))
+    ttk.Label(t9, text="Para receber os avisos, o líder abre a página, toca em \"Receber avisos\" e permite as notificações. "
+                       "As configurações (horários, funcionários, avisos, e-mail) são as mesmas em todos os computadores da loja: "
+                       "mude em um e os outros atualizam sozinhos.", foreground=GREY, wraplength=720, justify="left").grid(row=11, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
     # ---------------- Geral
     t6 = tab("Geral")
@@ -579,16 +553,7 @@ def abrir(app):
         if n["email_ativo"] and (not n["email_servidor"] or not n["email_para"] or not (n["email_usuario"] or n["email_de"])):
             raise ValueError("E-mail: para enviar sozinho, preencha o servidor, o e-mail de quem envia e o e-mail de quem recebe.")
 
-        n["nuvem_ativa"] = bool(V["nv_on"].get())
-        n["nuvem_url"] = V["nv_url"].get().strip().rstrip("/")
-        n["nuvem_codigo"] = V["nv_cod"].get().strip()
-        n["lider_url"] = V["nv_lider"].get().strip()
         n["ntfy_ativo"] = bool(V["nt_on"].get())
-        n["ntfy_topico"] = V["nt_top"].get().strip()
-        if n["nuvem_ativa"] and (not n["nuvem_url"].startswith("https://") or not n["nuvem_codigo"]):
-            raise ValueError("Líder e celular: preencha o endereço do Firebase (começa com https://) e clique em Gerar código.")
-        if n["ntfy_ativo"] and not n["ntfy_topico"]:
-            raise ValueError("Líder e celular: preencha o tópico do ntfy.")
 
         n["nome_loja"] = V["loja"].get().strip()
         n["nome_caixa"] = V["caixa"].get().strip()

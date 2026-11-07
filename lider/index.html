@@ -141,6 +141,9 @@ function render(){
   h+='<h2>Falta fazer ('+falt.length+')</h2>'+(falt.length?falt.map(function(n){return '<div class="card"><div class="nm">'+esc(n)+'</div></div>'}).join(""):'<div class="empty">Nada pendente.</div>');
   h+='<h2>Feitas ('+feitas.length+')</h2>'+(feitas.length?feitas.slice().reverse().map(tarefaHtml).join(""):'<div class="empty">Ainda nada.</div>');
   if(rej.length){h+='<h2>Você marcou como não feitas</h2>'+rej.map(function(r){return '<div class="card"><div class="nm">'+esc(r.nome)+'</div><div class="meta">'+hm(r.quando)+(r.nota?" · "+esc(r.nota):"")+' · -'+r.pts+' pts</div></div>'}).join("")}
+  if(S.meta&&S.meta.ntfy){h+='<h2>Avisos no celular</h2><div class="card"><div class="meta">Receba um aviso quando uma tarefa ficar urgente ou o dia terminar. Instale o app <b>ntfy</b> (Play Store / App Store), toque em + e assine o tópico abaixo.</div>'+
+    '<div class="acts"><a href="https://ntfy.sh/'+esc(S.meta.ntfy)+'" target="_blank" rel="noopener"><button class="b-ok" type="button">Receber avisos</button></a></div>'+
+    '<div class="meta" style="margin-top:8px">Tópico: <b>'+esc(S.meta.ntfy)+'</b></div></div>'}
   h+='<p style="margin-top:20px"><button class="b-ghost" onclick="sair()">Desconectar este aparelho</button></p>';
   var y=window.scrollY;$.innerHTML=h;window.scrollTo(0,y);
 }

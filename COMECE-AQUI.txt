@@ -1,31 +1,20 @@
-PAINEL DO CAIXA - como instalar (2 minutos)
-===========================================
+PAINEL DO CAIXA
+===============
 
-1. Extraia este zip em uma pasta fixa, por exemplo C:\PainelCaixa
-   (clique direito no zip > Extrair tudo). Nao rode de dentro do zip.
+INSTALAR (em cada computador, 1 minuto)
+1. Baixe o PainelDoCaixa.exe (arquivo unico) e de dois cliques.
+   Se o Windows avisar "protegeu seu computador": Mais informacoes > Executar assim mesmo.
+2. Ele se instala sozinho, abre com o Windows e fica no icone perto do relogio.
+3. Na primeira vez aparece "Conectar a loja":
+   - Primeiro computador: "criar a loja".
+   - Demais computadores: cole o codigo da loja (Configuracoes > Loja e lider) ou coloque o arquivo loja.txt
+     ao lado do .exe antes de abrir.
 
-2. Abra a pasta PainelDoCaixa e de dois cliques em PainelDoCaixa.exe.
-   - Se o Windows mostrar "O Windows protegeu seu computador", clique em
-     "Mais informacoes" e depois em "Executar assim mesmo". Isso acontece
-     porque o programa e novo, nao porque tenha problema.
+CELULAR DO LIDER
+Configuracoes > Loja e lider > aponte a camera do celular para o QR code. Depois: Adicionar a tela inicial.
+Na pagina, "Receber avisos" liga as notificacoes de tarefa urgente.
 
-3. Pronto. Ele passa a abrir sozinho toda vez que o Windows ligar, fica escondido
-   e aparece um icone rosa perto do relogio (na setinha ^). Nao precisa instalar Python.
-
-Seus dados (configuracoes, pontos, historico) ficam em:
-   %APPDATA%\PainelDoCaixa     (cole isso na barra do Explorador de Arquivos)
-Os relatorios em PDF ficam na Area de Trabalho, na pasta "Relatorios do Caixa".
-
-Primeira configuracao (para o patrao ou gerente):
-- Botao direito no icone > Configuracoes.
-- Aba Funcionarios: nomes e turnos.   Aba Horarios por dia: abre/fecha de cada dia.
-- Aba E-mail: relatorio do dia enviado sozinho.
-- Aba Lider e celular: para o lider ver e validar as tarefas no celular (veja LIDER.txt).
-
-Atualizar para uma versao nova: feche o programa (icone > Sair), apague a pasta PainelDoCaixa
-antiga, extraia a nova no mesmo lugar e abra o .exe. Seus dados continuam la.
-
-Remover: icone > Sair, apague a pasta do programa e a pasta %APPDATA%\PainelDoCaixa.
-Para tirar do inicio do Windows: Configuracoes do Windows > Aplicativos > Inicializacao > desligue PainelDoCaixa.
-
-Se algo der errado: abra %APPDATA%\PainelDoCaixa\erro.log e mande o conteudo.
+ATUALIZAR: baixe o .exe novo e de dois cliques. Ele troca a versao sozinho e mantem seus dados.
+REMOVER: icone > Sair; apague %LOCALAPPDATA%\PainelDoCaixa e %APPDATA%\PainelDoCaixa;
+         Configuracoes do Windows > Aplicativos > Inicializacao > desligue PainelDoCaixa.
+Problemas: mande o arquivo %APPDATA%\PainelDoCaixa\erro.log.
