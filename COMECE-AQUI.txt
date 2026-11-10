@@ -18,3 +18,12 @@ ATUALIZAR: baixe o .exe novo e de dois cliques. Ele troca a versao sozinho e man
 REMOVER: icone > Sair; apague %LOCALAPPDATA%\PainelDoCaixa e %APPDATA%\PainelDoCaixa;
          Configuracoes do Windows > Aplicativos > Inicializacao > desligue PainelDoCaixa.
 Problemas: mande o arquivo %APPDATA%\PainelDoCaixa\erro.log.
+
+
+NOVIDADES (versão 6)
+- Datas especiais: em Configurações > "Datas especiais" cadastre Black Friday, Natal, feriados etc. com horários próprios (vale no lugar do dia da semana).
+- Botão "Horário de hoje": muda só o horário de hoje, sem mexer nas configurações.
+- "Horas do caixa" agora é opcional: vazio = confere o caixa a cada hora cheia da tarde.
+- "Quem está no caixa?": ao abrir o programa e na troca de turno aparece uma tela para escolher o nome.
+- Celular do funcionário: abra o mesmo link (ou QR) no celular, aba "Funcionário", escolha o nome e toque "Feito". O computador do caixa precisa estar ligado para registrar.
+- PIN do líder (opcional): Configurações > Loja e líder.

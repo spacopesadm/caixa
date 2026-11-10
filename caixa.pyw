@@ -103,6 +103,7 @@ DEFAULT_CONFIG = {
     "nuvem_codigo": "",
     "lider_url": LIDER_URL_PADRAO,
     "ntfy_ativo": True,
+    "pin_lider": "",
     "maquina_id": "",
     "maquina_nome": "",
     "cfg_rev": 0,
@@ -171,6 +172,7 @@ DEFAULT_CONFIG = {
         "Hoje é um ótimo dia para bater seu recorde de pontos!",
     ],
     "dias_semana": DEFAULT_DIAS,
+    "excecoes": [],
     "funcionarios": [],
     "penalidade_ativa": True,
     "penalidade_pontos": 1,
@@ -447,6 +449,7 @@ class App:
         self.hold_until = 0
         self.cmd_q = queue.Queue()
         self.nuvem = None
+        self.ov = None            # marcação feita pelo celular: horário e funcionário reais
         self.enviado = set()
         self.maquinas = {}
         self.fim_alvo = None
@@ -798,7 +801,79 @@ class App:
                 "aberto": bool(self.day_open), "funcionario": self.emp_nome(self.emp_id()) if self.funcionarios() else cfg.get("nome_caixa", ""),
                 "pontos": st.get("pontos", 0), "pts_func": {nomes.get(k, k): v for k, v in st.get("pts_func", {}).items()},
                 "tarefas": tarefas, "faltando": faltando, "total": total, "urgentes": urg,
-                "rejeitadas": st.get("rejeitadas", []), "relatorio": bool(st.get("relatorio_gerado"))}
+                "rejeitadas": st.get("rejeitadas", []), "relatorio": bool(st.get("relatorio_gerado")),
+                "funcionarios": [{"id": e["id"], "nome": e["nome"]} for e in self.funcionarios()],
+                "lista": self.lista_snapshot()}
+
+    def lista_snapshot(self):
+        bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}
+        out = []
+        for kind, iid, nome in self.lista_tarefas():
+            try:
+                prev = int(self.due_ts(kind, iid) * 1000)
+            except Exception:
+                prev = 0
+            out.append({"k": kind, "id": iid, "nome": nome, "previsto": prev, "feito": int((self.state[bucket[kind]].get(iid) or 0) * 1000)})
+        return out
+
+    def lista_tarefas(self):
+        """Todas as tarefas de hoje: (tipo, id, nome)."""
+        out = [("am", r[0], r[1]) for r in self.cfg["ao_chegar"]]
+        out += [("cx", str(h), "Caixa das %sh" % h) for h in self.cfg["horas_caixa"]]
+        out += [("conf", r[0], r[1]) for r in self.cfg["conferencias"]]
+        out += [("lem", lid, nome) for lid, mn, nome, texto, curto in lembretes_cfg(self.cfg)]
+        return out
+
+    def aplicar_pedido(self, p):
+        """Marcação feita no celular do funcionário. A hora e o autor vêm do pedido, então todos os computadores chegam ao mesmo resultado."""
+        kind, iid = p.get("k"), str(p.get("id"))
+        try:
+            ts = float(p.get("ts", 0)) / 1000.0
+        except (TypeError, ValueError):
+            return False
+        if not ts or kind not in ("am", "cx", "lem", "conf") or not any(t == kind and i == iid for t, i, _ in self.lista_tarefas()):
+            return False
+        if abs(time.time() - ts) > 36 * 3600:
+            return False
+        st = self.state
+        bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}[kind]
+        if kind != "conf" and st[bucket].get(iid):
+            return False
+        if kind == "conf":
+            ult = st["last"].get(iid) or 0
+            if "conf-" + iid not in self.pend and ult and ts - ult < int(self.cfg.get("conferencia_espera_minutos", 30)) * 60:
+                return False
+        fid = p.get("fid") if any(e["id"] == p.get("fid") for e in self.funcionarios()) else None
+        self.ov = {"ts": ts, "fid": fid}
+        try:
+            self.record(kind, iid, "celular")
+        finally:
+            self.ov = None
+        st[bucket][iid] = max(ts, st[bucket].get(iid) or 0)
+        if kind == "conf":
+            self.conf_gate_until = time.time() + self.cfg["intervalo_entre_conferencias_minutos"] * 60
+        q = self.pend.get({"cx": "cx" + iid, "conf": "conf-" + iid, "lem": iid}.get(kind, ""))
+        if q:
+            st["ok"] += 1
+            self.close_pending_pop(q)
+            self.pend.pop({"cx": "cx" + iid, "conf": "conf-" + iid, "lem": iid}[kind], None)
+        self.save()
+        self.refresh()
+        self.check_celebrate()
+        return True
+
+    def on_pedidos(self, dia, ped):
+        if dia != self.state["date"]:
+            return
+        vistos = self.state.setdefault("pedidos_vistos", [])
+        for pid, p in sorted(ped.items(), key=lambda kv: (kv[1] or {}).get("ts", 0) if isinstance(kv[1], dict) else 0):
+            if pid in vistos or not isinstance(p, dict):
+                continue
+            vistos.append(pid)
+            try:
+                self.aplicar_pedido(p)
+            except Exception:
+                log("pedido: " + traceback.format_exc())
 
     def avisar_lider(self, titulo, texto, prio=3):
         if self.nuvem is not None:
@@ -849,10 +924,24 @@ class App:
 
     def day_sched(self, d=None):
         d = d or dt.date.today()
+        iso = d.isoformat()
+        for ex in self.cfg.get("excecoes") or []:          # datas especiais (campanhas, sábado diferente...) valem mais que o dia da semana
+            try:
+                if ex.get("de", "") <= iso <= (ex.get("ate") or ex.get("de", "")):
+                    return ex
+            except Exception:
+                continue
         base = (self.cfg.get("dias_semana") or {}).get(str(d.weekday()))
         if not isinstance(base, dict):
             base = DEFAULT_DIAS[str(d.weekday())]
         return base
+
+    @staticmethod
+    def horas_auto(tarde):
+        """Sem horas definidas: confere o caixa a cada hora cheia da tarde (da abertura até 1 hora antes do fim)."""
+        ini, fim = hm_to_min(tarde[0]), hm_to_min(tarde[1])
+        h0 = (ini + 59) // 60
+        return list(range(h0, max(h0 + 1, fim // 60)))
 
     def apply_day(self):
         """Aplica o horário do dia da semana de hoje (cada dia pode ter o seu)."""
@@ -861,7 +950,8 @@ class App:
         self.day_open = bool(s.get("aberto", True))
         self.cfg["ao_chegar_horario"] = list(s.get("ao_chegar") or ref["ao_chegar"])
         self.cfg["tarde_horario"] = list(s.get("tarde") or ref["tarde"])
-        self.cfg["horas_caixa"] = sorted(int(h) for h in (s.get("horas") or ref["horas"]))
+        horas = s.get("horas") or self.horas_auto(self.cfg["tarde_horario"])
+        self.cfg["horas_caixa"] = sorted(int(h) for h in horas)
         self.state["sched"] = {"aberto": self.day_open, "ao_chegar_horario": self.cfg["ao_chegar_horario"],
                                "tarde_horario": self.cfg["tarde_horario"], "horas_caixa": self.cfg["horas_caixa"]}
 
@@ -1263,6 +1353,7 @@ class App:
         ph = self.phase(m)
         if not self.day_open:
             return
+        self.checar_quem(d)
         if m % 10 == 0:
             self.process_envios()
         if m == a[0] and self.once("open"):
@@ -1489,7 +1580,7 @@ class App:
             self.pend.pop(pid, None)
 
     def record(self, kind, arg, via):
-        now = time.time()
+        now = self.ov["ts"] if self.ov else time.time()
         pid = {"cx": "cx%s" % arg, "conf": "conf-%s" % arg, "lem": arg}.get(kind)
         p = self.pend.get(pid) if pid else None
         due = min(self.due_ts(kind, arg), now)
@@ -1506,7 +1597,7 @@ class App:
                 base = 0
         pen = self.penalty_for(atraso)
         pts = base - pen
-        fid = self.emp_id()
+        fid = (self.ov or {}).get("fid") or self.emp_id()
         self.state["log"].append({
             "k": kind, "id": str(arg), "nome": self.task_name(kind, arg), "due": due, "done": now,
             "nivel": p.get("maxlevel", 0) if p else 0, "adiou": p.get("snoozes", 0) if p else 0,
@@ -1910,6 +2001,8 @@ class App:
                 self.config_remota(c[1])
             except Exception:
                 log("config_remota: " + traceback.format_exc())
+        elif c[0] == "pedidos":
+            self.on_pedidos(c[1], c[2])
         elif c[0] == "validacoes":
             try:
                 self.on_validacoes(c[1], c[2])
@@ -1947,6 +2040,114 @@ class App:
         tk.Button(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5,
                   cursor="hand2").pack(side="right", padx=8)
 
+    # ---- horário só de hoje (campanha, dia diferente) sem mexer na configuração geral
+    def open_hoje(self):
+        hoje = dt.date.today()
+        iso = hoje.isoformat()
+        s = self.day_sched(hoje)
+        w = tk.Toplevel(self.root)
+        w.title("Horário de hoje")
+        w.configure(bg=BG)
+        w.attributes("-topmost", True)
+        w.geometry("+%d+%d" % (max(60, self.root.winfo_screenwidth() // 2 - 220), 100))
+        tk.Label(w, text="Horário só de hoje (%s)" % hoje.strftime("%d/%m"), font=(FONT, 14, "bold"), bg=BG, fg=INK).pack(padx=24, pady=(18, 2), anchor="w")
+        tk.Label(w, text="Vale apenas para hoje. Amanhã volta ao horário normal.", font=(FONT, 10), bg=BG, fg=GREY).pack(padx=24, anchor="w")
+        fechado = tk.BooleanVar(value=not bool(s.get("aberto", True)))
+        tk.Checkbutton(w, text="A loja está fechada hoje", variable=fechado, bg=BG, activebackground=BG, font=(FONT, 11)).pack(padx=24, pady=(10, 4), anchor="w")
+        g = tk.Frame(w, bg=BG)
+        g.pack(padx=24, pady=4, anchor="w")
+        ao, ta = s.get("ao_chegar") or ["09:00", "10:30"], s.get("tarde") or ["13:00", "19:00"]
+        campos = {}
+        for r, (rot, k, val) in enumerate([("Ao chegar: começa", "a0", ao[0]), ("Ao chegar: termina", "a1", ao[1]),
+                                           ("Tarde: começa", "p0", ta[0]), ("Fecha às", "p1", ta[1])]):
+            tk.Label(g, text=rot, bg=BG, font=(FONT, 11)).grid(row=r, column=0, sticky="w", pady=3)
+            campos[k] = tk.StringVar(value=val)
+            tk.Entry(g, textvariable=campos[k], width=8, font=(FONT, 12)).grid(row=r, column=1, padx=12)
+        erro = tk.StringVar()
+        tk.Label(w, textvariable=erro, bg=BG, fg=RED, font=(FONT, 10), wraplength=380, justify="left").pack(padx=24, anchor="w")
+
+        def salvar():
+            try:
+                def hm(t):
+                    t = t.strip()
+                    h, m = t.split(":")
+                    if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+                        raise ValueError
+                    return "%02d:%02d" % (int(h), int(m))
+                a0, a1, p0, p1 = (hm(campos[k].get()) for k in ("a0", "a1", "p0", "p1"))
+                if not fechado.get() and not (hm_to_min(a0) < hm_to_min(a1) <= hm_to_min(p0) < hm_to_min(p1)):
+                    erro.set("Horários fora de ordem. Use: chegada < fim da chegada <= volta < fechamento.")
+                    return
+            except Exception:
+                erro.set("Use o formato HH:MM, por exemplo 09:00.")
+                return
+            novo = json.loads(json.dumps(self.cfg))
+            novo["excecoes"] = [x for x in novo.get("excecoes", []) if x.get("id") != "hoje-" + iso]
+            novo["excecoes"].append({"id": "hoje-" + iso, "nome": "Hoje", "de": iso, "ate": iso, "aberto": not fechado.get(),
+                                     "ao_chegar": [a0, a1], "tarde": [p0, p1], "horas": []})
+            self.apply_config(novo)
+            self.show("Horário de hoje", "Pronto. Hoje: %s e %s às %s." % (a0, p0, p1) if not fechado.get() else "Loja marcada como fechada hoje.", "tag", 8000, True)
+            w.destroy()
+
+        def normal():
+            novo = json.loads(json.dumps(self.cfg))
+            novo["excecoes"] = [x for x in novo.get("excecoes", []) if x.get("id") != "hoje-" + iso]
+            self.apply_config(novo)
+            w.destroy()
+        row = tk.Frame(w, bg=BG)
+        row.pack(fill="x", padx=24, pady=14)
+        tk.Button(row, text="Salvar", command=salvar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 11, "bold"), padx=22, pady=5, cursor="hand2").pack(side="right")
+        tk.Button(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="right", padx=8)
+        if any(x.get("id") == "hoje-" + iso for x in self.cfg.get("excecoes", [])):
+            tk.Button(row, text="Voltar ao normal", command=normal, relief="flat", font=(FONT, 10), padx=8, pady=5, cursor="hand2").pack(side="left")
+
+    # ---- quem está no caixa: pergunta no começo do dia e na troca de turno
+    def pedir_funcionario(self, titulo="Quem está no caixa agora?"):
+        emps = self.funcionarios()
+        if not emps:
+            return
+        try:
+            if getattr(self, "quem_win", None) is not None and self.quem_win.winfo_exists():
+                self.quem_win.lift()
+                return
+        except tk.TclError:
+            pass
+        atual = self.current_emp()
+        w = self.quem_win = tk.Toplevel(self.root)
+        w.title("Quem está no caixa?")
+        w.configure(bg=BG)
+        w.attributes("-topmost", True)
+        w.geometry("+%d+%d" % (max(40, self.root.winfo_screenwidth() // 2 - 200), 110))
+        tk.Label(w, text=titulo, font=(FONT, 16, "bold"), bg=BG, fg=INK).pack(padx=30, pady=(22, 4), anchor="w")
+        tk.Label(w, text="Toque no seu nome. Os pontos e as tarefas ficam no seu nome.", font=(FONT, 10), bg=BG, fg=GREY).pack(padx=30, anchor="w")
+
+        def escolher(e):
+            self.set_func_manual(e["id"])
+            self.state["func_confirmado"] = True
+            self.save()
+            self.show("Bom trabalho, %s!" % e["nome"].split()[0], "Você está no caixa agora.", "tag", 6000, True)
+            w.destroy()
+        for e in emps:
+            sug = atual is not None and e["id"] == atual["id"]
+            tk.Button(w, text=e["nome"] + ("   (turno agora)" if sug else ""), command=lambda e=e: escolher(e),
+                      font=(FONT, 15, "bold"), bg=PINK if sug else INK, fg="#FFFFFF", activebackground=BLUE, activeforeground="#FFFFFF",
+                      relief="flat", cursor="hand2", padx=20, pady=12).pack(fill="x", padx=30, pady=(12, 0))
+        tk.Button(w, text="Agora não", command=w.destroy, relief="flat", font=(FONT, 10), bg=BG, fg=GREY, cursor="hand2").pack(pady=(12, 16))
+
+    def checar_quem(self, d):
+        """Pergunta quem está no caixa ao abrir o programa e no começo do turno de cada funcionário."""
+        if not self.funcionarios() or not self.day_open:
+            return
+        m = d.hour * 60 + d.minute
+        if not self.state.get("func_confirmado") and self.once("quem-inicio"):
+            self.pedir_funcionario()
+            return
+        for e in self.funcionarios():
+            sh = self.shift_of(e, d.weekday())
+            if sh and m == sh[0] and self.once("turno-" + e["id"]):
+                self.pedir_funcionario("Começou o turno de %s. Quem está no caixa?" % e["nome"].split()[0])
+                return
+
     # ---- pausa "cliente na frente"
     def set_hold(self, on):
         if on:
@@ -1982,6 +2183,7 @@ class App:
             pystray.MenuItem("Abrir checklist", put("open"), default=True),
             pystray.MenuItem("Cliente na frente (pausar avisos)", put("hold")),
             pystray.MenuItem("Trocar funcionário", put("switch")),
+            pystray.MenuItem("Horário de hoje", put("hoje")),
             pystray.MenuItem("Configurações", put("settings")),
             pystray.MenuItem("Ver os formatos de aviso", put("test")),
             pystray.MenuItem("Gerar relatório do dia", put("report")),
@@ -2023,6 +2225,10 @@ class App:
                 self.open_settings()
             elif c == "switch":
                 self.open_switch()
+            elif c == "hoje":
+                self.open_hoje()
+            elif c == "quem":
+                self.pedir_funcionario()
             elif c == "quit":
                 self.quit()
 
@@ -2085,6 +2291,8 @@ class App:
                   padx=12, pady=4).pack(fill="x", pady=(0, 4))
         tk.Button(right, text="Configurações", command=self.open_settings, font=(FONT, 10, "bold"), relief="solid", bd=1,
                   bg=PAPER, fg=INK, cursor="hand2", padx=12, pady=3).pack(fill="x")
+        tk.Button(right, text="Horário de hoje", command=self.open_hoje, font=(FONT, 10), relief="solid", bd=1,
+                  bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
         W["btn_emp"] = tk.Button(right, text="Trocar funcionário", command=self.open_switch, font=(FONT, 10), relief="solid", bd=1,
                                  bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3)
         W["hold"] = tk.Button(top, text="", command=lambda: self.set_hold(not self.holding()), font=(FONT, 12, "bold"),

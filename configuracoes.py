@@ -16,6 +16,7 @@ FONT = "Segoe UI"
 GREY = "#5B6878"
 DIAS_NOMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
 MAX_FUNC = 6
+MAX_EXC = 8
 
 LISTAS = [
     ("ao_chegar", "Tarefas de ao chegar (uma por linha)"),
@@ -171,9 +172,43 @@ def abrir(app):
             for k in ("on", "a0", "a1", "p0", "p1", "h"):
                 V["d%d_%s" % (i, k)].set(V["d0_%s" % k].get())
     ttk.Button(t2, text="Copiar a segunda para todos os dias", command=copiar_segunda).grid(row=11, column=0, columnspan=4, sticky="w", pady=(12, 0), padx=4)
-    ttk.Label(t2, text="Horas do caixa: as horas cheias em que o caixa é conferido, separadas por vírgula (ex.: 13, 14, 15, 16, 17, 18).\n"
-                       "Exemplo de sábado curto: Ao chegar 09:00 a 10:30, Tarde 13:00 a 17:00, horas 13, 14, 15, 16.",
+    ttk.Label(t2, text="Horas do caixa: deixe VAZIO para conferir a cada hora cheia da tarde automaticamente. Para escolher, separe por vírgula (ex.: 13, 14, 15).\n"
+                       "Sábado curto: Tarde 13:00 a 17:00 e horas vazias. Campanhas e datas específicas: aba Datas especiais.",
               foreground=GREY, wraplength=760, justify="left").grid(row=12, column=0, columnspan=8, sticky="w", pady=(10, 0), padx=4)
+
+    # ---------------- Datas especiais (campanhas, feriados, sábado diferente)
+    tx = tab("Datas especiais")
+    ttk.Label(tx, text="Horários diferentes em datas específicas (Black Friday, Natal, feriado...)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=9, sticky="w")
+    ttk.Label(tx, text="Vale no lugar do horário do dia da semana. Datas no formato DD/MM/AAAA. Para um dia só, deixe 'Até' vazio. "
+                       "Horas do caixa vazias = a cada hora cheia da tarde. Para só o dia de hoje, use o botão Horário de hoje.",
+              foreground=GREY, wraplength=800, justify="left").grid(row=1, column=0, columnspan=9, sticky="w", pady=(0, 8))
+    for ci, tx_ in enumerate(["Nome", "De", "Até", "Aberto", "Chegada: início", "fim", "Tarde: início", "fim", "Horas (opcional)"]):
+        ttk.Label(tx, text=tx_, foreground=GREY, font=(FONT, 9, "bold")).grid(row=2, column=ci, sticky="w", padx=3)
+    exs = [x for x in cfg.get("excecoes", []) if not str(x.get("id", "")).startswith("hoje-")]
+    hoje_ex = [x for x in cfg.get("excecoes", []) if str(x.get("id", "")).startswith("hoje-")]
+
+    def br(iso):
+        try:
+            a_, m_, d_ = iso.split("-")
+            return "%s/%s/%s" % (d_, m_, a_)
+        except Exception:
+            return ""
+    for r in range(MAX_EXC):
+        x = exs[r] if r < len(exs) else {}
+        ao, ta = x.get("ao_chegar") or ["09:00", "10:30"], x.get("tarde") or ["13:00", "19:00"]
+        V["x%d_nome" % r] = tk.StringVar(value=x.get("nome", ""))
+        V["x%d_de" % r] = tk.StringVar(value=br(x.get("de", "")))
+        V["x%d_ate" % r] = tk.StringVar(value=br(x.get("ate", "")) if x.get("ate") != x.get("de") else "")
+        V["x%d_on" % r] = tk.BooleanVar(value=bool(x.get("aberto", True)))
+        for ci, (k, wd) in enumerate([("nome", 16), ("de", 11), ("ate", 11)]):
+            ttk.Entry(tx, textvariable=V["x%d_%s" % (r, k)], width=wd).grid(row=3 + r, column=ci, sticky="w", padx=3, pady=2)
+        ttk.Checkbutton(tx, variable=V["x%d_on" % r]).grid(row=3 + r, column=3, sticky="w", padx=3)
+        for ci, (k, val) in enumerate([("a0", ao[0]), ("a1", ao[1]), ("p0", ta[0]), ("p1", ta[1])], start=4):
+            V["x%d_%s" % (r, k)] = tk.StringVar(value=val)
+            ttk.Entry(tx, textvariable=V["x%d_%s" % (r, k)], width=7).grid(row=3 + r, column=ci, sticky="w", padx=3, pady=2)
+        V["x%d_h" % r] = tk.StringVar(value=", ".join(str(h) for h in (x.get("horas") or [])))
+        ttk.Entry(tx, textvariable=V["x%d_h" % r], width=16).grid(row=3 + r, column=8, sticky="w", padx=3, pady=2)
+    ttk.Label(tx, text="Linhas sem nome e sem data são ignoradas. Datas passadas podem ser apagadas.", foreground=GREY).grid(row=3 + MAX_EXC, column=0, columnspan=9, sticky="w", pady=(8, 0))
 
     # ---------------- Funcionários
     tf = tab("Funcionários")
@@ -423,6 +458,10 @@ def abrir(app):
         except Exception:
             pass
     marca(t9, 9, "Avisar o líder no celular quando uma tarefa ficar urgente (pelo app ntfy)", "nt_on", cfg.get("ntfy_ativo", True))
+    campo(t9, 12, "PIN do líder (4 a 8 números; vazio = sem PIN)", "pin", cfg.get("pin_lider", ""), 12)
+    ttk.Label(t9, text="Sem o PIN, o funcionário que abrir o link no celular não consegue entrar na área do líder para conferir as próprias tarefas. "
+                       "É uma proteção simples, não substitui não compartilhar o link do líder.", foreground=GREY, wraplength=720,
+              justify="left").grid(row=13, column=0, columnspan=4, sticky="w", pady=(2, 0))
     ttk.Label(t9, textvariable=res_nv, wraplength=720, justify="left").grid(row=10, column=0, columnspan=4, sticky="w", pady=(10, 0))
     ttk.Label(t9, text="Para receber os avisos, o líder abre a página, toca em \"Receber avisos\" e permite as notificações. "
                        "As configurações (horários, funcionários, avisos, e-mail) são as mesmas em todos os computadores da loja: "
@@ -472,10 +511,33 @@ def abrir(app):
             for parte in V["d%d_h" % i].get().replace(";", ",").split(","):
                 if parte.strip():
                     horas.add(_num("%s, horas do caixa" % nm, parte, 0, 23))
-            if on and not horas:
-                raise ValueError("%s: informe pelo menos uma hora do caixa, por exemplo 13, 14, 15." % nm)
             dias[str(i)] = {"aberto": on, "ao_chegar": [a0, a1], "tarde": [p0, p1], "horas": sorted(horas)}
         n["dias_semana"] = dias
+
+        exc = []
+        import datetime as _dt
+        for r in range(MAX_EXC):
+            nome = V["x%d_nome" % r].get().strip()
+            de_t, ate_t = V["x%d_de" % r].get().strip(), V["x%d_ate" % r].get().strip()
+            if not nome and not de_t and not ate_t:
+                continue
+            rot = "Data especial %d%s" % (r + 1, (" (%s)" % nome) if nome else "")
+            try:
+                de = _dt.datetime.strptime(de_t, "%d/%m/%Y").date()
+                ate = _dt.datetime.strptime(ate_t, "%d/%m/%Y").date() if ate_t else de
+            except ValueError:
+                raise ValueError("%s: use a data no formato DD/MM/AAAA (ex.: 27/11/2026)." % rot)
+            if ate < de:
+                raise ValueError("%s: a data final é antes da inicial." % rot)
+            on = bool(V["x%d_on" % r].get())
+            a0, a1 = _hm(rot + ", chegada início", V["x%d_a0" % r].get()), _hm(rot + ", chegada fim", V["x%d_a1" % r].get())
+            p0, p1 = _hm(rot + ", tarde início", V["x%d_p0" % r].get()), _hm(rot + ", tarde fim", V["x%d_p1" % r].get())
+            if on and not (_min(a0) < _min(a1) <= _min(p0) < _min(p1)):
+                raise ValueError("%s: horários fora de ordem." % rot)
+            horas = sorted({_num(rot + ", horas", t, 0, 23) for t in V["x%d_h" % r].get().replace(";", ",").split(",") if t.strip()})
+            exc.append({"id": "x%d" % (r + 1), "nome": nome or "Data especial", "de": de.isoformat(), "ate": ate.isoformat(),
+                        "aberto": on, "ao_chegar": [a0, a1], "tarde": [p0, p1], "horas": horas})
+        n["excecoes"] = exc + [x for x in hoje_ex if x.get("de", "") >= _dt.date.today().isoformat()]
 
         funcs, usados = [], set()
         for r in range(MAX_FUNC):
@@ -554,6 +616,10 @@ def abrir(app):
             raise ValueError("E-mail: para enviar sozinho, preencha o servidor, o e-mail de quem envia e o e-mail de quem recebe.")
 
         n["ntfy_ativo"] = bool(V["nt_on"].get())
+        pin = V["pin"].get().strip()
+        if pin and not (pin.isdigit() and 4 <= len(pin) <= 8):
+            raise ValueError("PIN do líder: use de 4 a 8 números, ou deixe vazio.")
+        n["pin_lider"] = pin
 
         n["nome_loja"] = V["loja"].get().strip()
         n["nome_caixa"] = V["caixa"].get().strip()

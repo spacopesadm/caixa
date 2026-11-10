@@ -230,6 +230,8 @@ class Nuvem:
                 meta = {"ultimo": d, "atualizado": int(time.time() * 1000), "loja": snap.get("loja", "")}
                 if c.get("ntfy_ativo"):
                     meta["ntfy"] = topico(c.get("nuvem_codigo", ""))
+                pin = str(c.get("pin_lider") or "").strip()
+                meta["pin"] = hashlib.sha256((pin + c.get("nuvem_codigo", "")).encode()).hexdigest() if pin else None
                 _req("PATCH", base + "/meta.json", meta)
             except Exception:
                 with self.lock:
@@ -249,6 +251,9 @@ class Nuvem:
             cfg_r = _req("GET", base + "/config.json")
             if cfg_r and self._novo("config", cfg_r):
                 self.cmd_q.put(("config_remota", cfg_r))
+        ped = _req("GET", "%s/pedidos/%s.json" % (base, dia)) or {}
+        if ped and self._novo("pedidos", ped):
+            self.cmd_q.put(("pedidos", dia, ped))
         val = _req("GET", "%s/validacoes/%s.json" % (base, dia)) or {}
         novas = {k: v for k, v in val.items() if isinstance(v, dict) and self.visto.get(k) != v.get("ts")}
         if novas:

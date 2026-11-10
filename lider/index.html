@@ -36,6 +36,8 @@ button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14p
 .b-ok{background:var(--ok);color:#fff}.b-no{background:var(--badbg);color:var(--bad)}.b-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .urg{border-color:var(--bad);background:var(--badbg)}
 .empty{color:var(--mut);padding:8px 0}
+.tabs{display:flex;gap:6px;margin:6px 0 4px}.tab{flex:1;background:var(--card);color:var(--mut);border:1px solid var(--line)}.tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.sub a{color:var(--blue)}
 select,input{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
 .setup label{display:block;margin:10px 0 4px;font-size:14px;color:var(--mut)}
 .err{color:var(--bad);font-size:14px;margin-top:8px}
@@ -47,7 +49,7 @@ select,input{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid v
 (function(){
 "use strict";
 var $=document.getElementById("app");
-var S={u:"",t:"",dia:"",dias:[],snap:null,val:{},meta:null,erro:"",carregando:true,aba:"hoje"};
+var S={u:"",t:"",dia:"",dias:[],snap:null,val:{},meta:null,erro:"",carregando:true,modo:"func",func:"",env:{},pinOk:false,erroPin:""};
 var POLL=5000, timer=null;
 
 function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
@@ -64,7 +66,7 @@ function atrasoTxt(m){return m<1?"na hora":m<60?Math.round(m)+" min de atraso":M
   var h=location.hash.replace(/^#/,"");
   if(h){var p={};h.split("&").forEach(function(x){var i=x.indexOf("=");if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1))});
     if(p.u&&p.t){guardar("cx_u",p.u);guardar("cx_t",p.t);history.replaceState(null,"",location.pathname+location.search)}}
-  S.u=ler("cx_u").replace(/\/+$/,"");S.t=ler("cx_t");
+  S.u=ler("cx_u").replace(/\/+$/,"");S.t=ler("cx_t");S.modo=ler("cx_modo")||"func";S.func=ler("cx_func");try{S.pinOk=sessionStorage.getItem("cx_pin_ok")==="1"}catch(e){}
 })();
 
 function url(caminho){return S.u+"/lojas/"+encodeURIComponent(S.t)+"/"+caminho+".json"}
@@ -115,9 +117,69 @@ function tarefaHtml(t){
     (sel?'<div style="margin-top:6px">'+sel+'</div>':"")+acts+'</div>';
 }
 
+function hash256(txt){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(txt)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
+window.entrarPin=function(){
+  var v=document.getElementById("pin").value.trim();
+  if(!(window.crypto&&crypto.subtle)){S.erroPin="Este navegador não permite conferir o PIN.";render();return}
+  hash256(v+S.t).then(function(h){
+    if(S.meta&&S.meta.pin===h){S.pinOk=true;try{sessionStorage.setItem("cx_pin_ok","1")}catch(e){}S.erroPin=""}else{S.erroPin="PIN incorreto."}
+    render();
+  });
+};
+window.modo=function(m){S.modo=m;guardar("cx_modo",m);render()};
+window.escolherFunc=function(id){S.func=id;guardar("cx_func",id);render()};
+window.marcar=function(k,id){
+  var s=S.snap;if(!s)return;
+  var ts=Date.now(),pid=k+"_"+String(id).replace(/[^A-Za-z0-9_-]/g,"-")+"_"+ts;
+  S.env[k+"|"+id]=ts;if(navigator.vibrate)navigator.vibrate(40);render();
+  put("pedidos/"+s.data+"/"+pid,{k:k,id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env[k+"|"+id];S.erro="Não consegui enviar. Verifique a internet.";render()});
+};
+
+function abas(){
+  return '<div class="tabs"><button class="tab'+(S.modo==="func"?" on":"")+'" onclick="modo(\'func\')">Funcionário</button>'+
+         '<button class="tab'+(S.modo==="lider"?" on":"")+'" onclick="modo(\'lider\')">Líder</button></div>';
+}
+
+function renderFunc(s){
+  var h="",fs=s.funcionarios||[];
+  if(fs.length&&!fs.some(function(f){return f.id===S.func})){
+    h+='<h2>Quem é você?</h2>'+fs.map(function(f){return '<div class="card"><button class="b-ok" style="width:100%;font-size:18px" onclick="escolherFunc(\''+esc(f.id)+'\')">'+esc(f.nome)+'</button></div>'}).join("");
+    return h;
+  }
+  var me=fs.filter(function(f){return f.id===S.func})[0],nome=me?me.nome:"";
+  if(nome){h+='<div class="sub">Você é <b>'+esc(nome)+'</b> · <a href="#" onclick="escolherFunc(\'\');return false">trocar</a> · '+((s.pts_func&&s.pts_func[nome])||0)+' pontos hoje</div>'}
+  var urg=s.urgentes||[];
+  if(urg.length){h+='<h2>Urgente</h2>'+urg.map(function(u){return '<div class="card urg"><div class="nm">'+esc(u.nome)+'</div><div class="meta">Pendente '+ha(u.desde)+'</div></div>'}).join("")}
+  var agora=Date.now(),lista=s.lista||[];
+  function enviado(t){var e=S.env[t.k+"|"+t.id];return e&&agora-e<60000}
+  var fazer=[],depois=[],confs=[],feitas=[];
+  lista.forEach(function(t){
+    if(t.k==="conf"){confs.push(t);return}
+    if(t.feito||enviado(t)){feitas.push(t)}else if(t.previsto<=agora+5*60000){fazer.push(t)}else{depois.push(t)}
+  });
+  fazer.sort(function(a,b){return a.previsto-b.previsto});depois.sort(function(a,b){return a.previsto-b.previsto});
+  function linha(t,tipo){
+    var ok=t.feito||enviado(t),sub="";
+    if(ok){sub='Feito'+(t.feito?' às '+hm(t.feito):' (enviando...)')}else if(t.k!=="conf"){sub='Previsto '+hm(t.previsto)}
+    var btn=ok?'':'<button class="b-ok" onclick="marcar(\''+esc(t.k)+'\',\''+esc(t.id)+'\')">Feito</button>';
+    return '<div class="card"><div class="task"><div><div class="nm">'+esc(t.nome)+'</div><div class="meta">'+sub+'</div></div>'+btn+'</div></div>';
+  }
+  h+='<h2>Para fazer agora ('+fazer.length+')</h2>'+(fazer.length?fazer.map(linha).join(""):'<div class="empty">Nada pendente agora. Bom trabalho!</div>');
+  if(confs.length){
+    h+='<h2>Conferências</h2>'+confs.map(function(t){
+      var rec=t.feito&&(agora-t.feito<30*60000)||enviado(t);
+      return '<div class="card"><div class="task"><div><div class="nm">'+esc(t.nome)+'</div><div class="meta">'+(t.feito?'Última às '+hm(t.feito):'Ainda não conferido hoje')+'</div></div>'+
+        (rec?'<span class="tag t-ok">ok</span>':'<button class="b-ok" onclick="marcar(\'conf\',\''+esc(t.id)+'\')">Conferi</button>')+'</div></div>'}).join("");
+  }
+  if(depois.length)h+='<h2>Mais tarde</h2>'+depois.map(linha).join("");
+  if(feitas.length)h+='<h2>Feitas ('+feitas.length+')</h2>'+feitas.slice().sort(function(a,b){return (b.feito||0)-(a.feito||0)}).map(linha).join("");
+  if(!lista.length)h+='<div class="empty">O computador do caixa ainda não enviou a lista. Abra o programa lá.</div>';
+  return h;
+}
+
 function render(){
   if(!S.u||!S.t){
-    $.innerHTML='<header><h1>Caixa · Líder</h1></header><div class="card setup"><p>Abra o link que o programa do caixa gerou (Configurações &gt; Líder e celular &gt; Copiar link do líder), ou preencha abaixo.</p>'+
+    $.innerHTML='<header><h1>Caixa</h1></header><div class="card setup"><p>Abra o link que o programa do caixa gerou (Configurações &gt; Loja e líder), ou preencha abaixo.</p>'+
       '<label>Endereço do Firebase</label><input id="su" placeholder="https://xxxx-default-rtdb.firebaseio.com" autocapitalize="off">'+
       '<label>Código da loja</label><input id="st" autocapitalize="off"><div class="acts"><button class="b-ok" onclick="salvarSetup()">Conectar</button></div></div>';
     return;
@@ -126,7 +188,17 @@ function render(){
   var vivo=S.meta&&S.meta.atualizado&&(Date.now()-S.meta.atualizado<12*60000);
   h+='<header><div><h1>'+esc((s&&s.loja)||(S.meta&&S.meta.loja)||"Caixa")+'</h1><div class="sub">'+dataBR(S.dia)+(S.dia===hoje()?" · hoje":"")+'</div></div>'+
      '<span class="pill '+(vivo?"on":"off")+'"><span class="dot"></span>'+(S.meta&&S.meta.atualizado?(vivo?"ao vivo · "+ha(S.meta.atualizado):"sem sinal · "+ha(S.meta.atualizado)):"sem dados")+'</span></header>';
+  h+=abas();
   if(S.erro)h+='<div class="err">'+esc(S.erro)+'</div>';
+  if(S.modo==="lider"&&S.meta&&S.meta.pin&&!S.pinOk){
+    $.innerHTML=h+'<div class="card setup"><p>Área do líder. Digite o PIN.</p><input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">'+
+      '<div class="acts"><button class="b-ok" onclick="entrarPin()">Entrar</button></div>'+(S.erroPin?'<div class="err">'+esc(S.erroPin)+'</div>':'')+'</div>';
+    return;
+  }
+  if(S.modo==="func"){
+    if(!s){h+=S.carregando?'<p class="empty">Carregando...</p>':'<p class="empty">Nenhum dado de hoje ainda. O programa do caixa precisa estar aberto.</p>';$.innerHTML=h;return}
+    var y0=window.scrollY;$.innerHTML=h+renderFunc(s);window.scrollTo(0,y0);return;
+  }
   if(S.dias.length>1){h+='<select onchange="mudaDia(this.value)" aria-label="Dia">'+S.dias.map(function(d){return '<option value="'+d+'"'+(d===S.dia?" selected":"")+'>'+dataBR(d)+'</option>'}).join("")+'</select>'}
   if(!s){h+=S.carregando?'<p class="empty">Carregando...</p>':'<p class="empty">Nenhum dado neste dia ainda.</p>';$.innerHTML=h+'<p><button class="b-ghost" onclick="sair()">Desconectar</button></p>';return}
   var feitas=s.tarefas||[],falt=s.faltando||[],urg=s.urgentes||[],rej=s.rejeitadas||[];
@@ -137,7 +209,7 @@ function render(){
      '<div class="kpi"><b>'+(s.pontos||0)+'</b><span>pontos hoje</span></div></div>'+
      '<div class="bar"><i style="width:'+pct+'%"></i></div>';
   if(s.funcionario)h+='<div class="sub" style="margin-top:8px">No caixa: <b>'+esc(s.funcionario)+'</b>'+(s.aberto===false?" · loja fechada hoje":"")+'</div>';
-  if(urg.length){h+='<h2>Urgente agora</h2>'+urg.map(function(u){return '<div class="card urg"><div class="nm">'+esc(u.nome)+'</div><div class="meta">Pendente '+ha(u.desde).replace("há ","há ")+'</div></div>'}).join("")}
+  if(urg.length){h+='<h2>Urgente agora</h2>'+urg.map(function(u){return '<div class="card urg"><div class="nm">'+esc(u.nome)+'</div><div class="meta">Pendente '+ha(u.desde)+'</div></div>'}).join("")}
   h+='<h2>Falta fazer ('+falt.length+')</h2>'+(falt.length?falt.map(function(n){return '<div class="card"><div class="nm">'+esc(n)+'</div></div>'}).join(""):'<div class="empty">Nada pendente.</div>');
   h+='<h2>Feitas ('+feitas.length+')</h2>'+(feitas.length?feitas.slice().reverse().map(tarefaHtml).join(""):'<div class="empty">Ainda nada.</div>');
   if(rej.length){h+='<h2>Você marcou como não feitas</h2>'+rej.map(function(r){return '<div class="card"><div class="nm">'+esc(r.nome)+'</div><div class="meta">'+hm(r.quando)+(r.nota?" · "+esc(r.nota):"")+' · -'+r.pts+' pts</div></div>'}).join("")}
