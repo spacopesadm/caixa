@@ -27,3 +27,11 @@ NOVIDADES (versão 6)
 - "Quem está no caixa?": ao abrir o programa e na troca de turno aparece uma tela para escolher o nome.
 - Celular do funcionário: abra o mesmo link (ou QR) no celular, aba "Funcionário", escolha o nome e toque "Feito". O computador do caixa precisa estar ligado para registrar.
 - PIN do líder (opcional): Configurações > Loja e líder.
+
+APP ANDROID (APK) - VERSÃO 7
+- Na página Releases do GitHub, baixe também o PainelDoCaixa.apk e instale no celular (permita "instalar apps desconhecidos").
+- O celular precisa estar no MESMO Wi-Fi do computador do caixa. Não precisa de internet.
+- No computador: Configurações > Celular (Wi-Fi) mostra o PIN de 6 números. No app, digite o PIN e toque em Conectar.
+- O app mostra a mesma tela de funcionário/líder e recebe os avisos (tarefa pendente, urgente, dia completo) tocando e vibrando.
+- Na primeira vez o Windows pergunta sobre o Firewall: marque "Redes privadas" e Permitir acesso.
+- Se o computador mudar de endereço na rede, o app procura de novo sozinho.

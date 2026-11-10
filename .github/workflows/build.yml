@@ -25,7 +25,7 @@ jobs:
         run: |
           cp caixa.pyw caixa_main.py
           pyinstaller --noconfirm --onefile --windowed --name PainelDoCaixa \
-            --hidden-import configuracoes --hidden-import relatorio --hidden-import envio --hidden-import nuvem \
+            --hidden-import configuracoes --hidden-import relatorio --hidden-import envio --hidden-import nuvem --hidden-import redelocal --add-data "lider;lider" \
             --collect-submodules reportlab --collect-data reportlab --collect-submodules qrcode \
             caixa_main.py
       - uses: actions/upload-artifact@v4
@@ -38,6 +38,34 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "v${{ github.run_number }}" dist/PainelDoCaixa.exe --title "Painel do Caixa v${{ github.run_number }}" --notes "Baixe o PainelDoCaixa.exe e dê dois cliques. Ele se instala sozinho e abre com o Windows."
+
+  apk:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Compilar o app Android
+        env:
+          VERSAO: ${{ github.run_number }}
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PainelDoCaixa-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+      - name: Anexar o APK na versão
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk PainelDoCaixa.apk
+          gh release upload "v${{ github.run_number }}" PainelDoCaixa.apk --clobber
 
   pagina-lider:
     runs-on: ubuntu-latest

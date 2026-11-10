@@ -467,6 +467,37 @@ def abrir(app):
                        "As configurações (horários, funcionários, avisos, e-mail) são as mesmas em todos os computadores da loja: "
                        "mude em um e os outros atualizam sozinhos.", foreground=GREY, wraplength=720, justify="left").grid(row=11, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
+    # ---------------- Celular pelo Wi-Fi da loja
+    t10 = tab("Celular (Wi-Fi)")
+    ttk.Label(t10, text="Celular pelo Wi-Fi da loja (app Android)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+    lc = getattr(app, "local", None)
+    end = lc.endereco() if lc else ""
+    if not lc or not end:
+        ttk.Label(t10, text="A conexão pelo Wi-Fi não está ativa neste computador (%s). Confira se o computador está na rede e se o Windows "
+                            "não bloqueou o programa." % (getattr(lc, "erro", "") or "sem rede"), foreground=GREY, wraplength=720,
+                  justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
+    else:
+        ttk.Label(t10, text="1) Instale o app (PainelDoCaixa.apk, na mesma página de onde você baixou o programa) no celular.\n"
+                            "2) Conecte o celular no MESMO Wi-Fi deste computador.\n"
+                            "3) Abra o app: ele acha este computador sozinho e pede só o PIN abaixo.\n"
+                            "Funciona sem internet. O computador do caixa precisa estar ligado com o programa aberto.",
+                  foreground=GREY, wraplength=720, justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        ttk.Label(t10, text="PIN para conectar o celular:", font=(FONT, 11)).grid(row=2, column=0, sticky="w")
+        ttk.Label(t10, text=cfg.get("local_pin", ""), font=(FONT, 22, "bold")).grid(row=2, column=1, sticky="w", padx=10)
+        ttk.Label(t10, text="Endereço deste computador na rede:", font=(FONT, 11)).grid(row=3, column=0, sticky="w", pady=(12, 0))
+        ttk.Label(t10, text=end, font=(FONT, 11, "bold")).grid(row=3, column=1, sticky="w", padx=10, pady=(12, 0))
+        ttk.Label(t10, text="Se o Windows perguntar sobre o Firewall na primeira vez, marque \"Redes privadas\" e clique em Permitir acesso. "
+                            "Se o app não achar o computador, digite o endereço acima na tela do app. "
+                            "Dica: no roteador, reserve este endereço para este computador para ele não mudar.",
+                  foreground=GREY, wraplength=720, justify="left").grid(row=4, column=0, columnspan=3, sticky="w", pady=(14, 0))
+        cod_l = (cfg.get("nuvem_codigo") or cfg.get("local_codigo") or "")
+        link_l = "%s/#u=%s&t=%s" % (end, end, cod_l)
+
+        def abrir_l():
+            import webbrowser
+            webbrowser.open(link_l)
+        ttk.Button(t10, text="Abrir a página do celular aqui (teste)", command=abrir_l).grid(row=5, column=0, sticky="w", pady=(12, 0))
+
     # ---------------- Geral
     t6 = tab("Geral")
     campo(t6, 0, "Nome da loja (aparece no relatório)", "loja", cfg.get("nome_loja", ""), 34)

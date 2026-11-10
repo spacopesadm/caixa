@@ -45,6 +45,10 @@ try:
     import nuvem
 except Exception:
     nuvem = None
+try:
+    import redelocal as rede_local
+except Exception:
+    rede_local = None
 
 NUVEM_URL_PADRAO = "https://caixa-spaco-pes-default-rtdb.firebaseio.com"
 LIDER_URL_PADRAO = "https://spacopesadm.github.io/caixa/"
@@ -106,6 +110,9 @@ DEFAULT_CONFIG = {
     "pin_lider": "",
     "maquina_id": "",
     "maquina_nome": "",
+    "local_ativo": True,
+    "local_pin": "",
+    "local_codigo": "",
     "cfg_rev": 0,
     "bonus_dia_completo": 5,
     "meta_semana_pontos": 150,
@@ -273,6 +280,12 @@ def load_config():
     if not cfg.get("maquina_id"):
         cfg["maquina_id"] = uuid.uuid4().hex[:10]
         cfg["maquina_nome"] = os.environ.get("COMPUTERNAME", "") or socket.gethostname()
+        if raw:
+            save_json(CONFIG_FILE, cfg)
+    if not cfg.get("local_pin") or not cfg.get("local_codigo"):
+        import secrets as _sec
+        cfg["local_pin"] = cfg.get("local_pin") or "%06d" % _sec.randbelow(1000000)
+        cfg["local_codigo"] = cfg.get("local_codigo") or "".join(_sec.choice("23456789ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(24))
         if raw:
             save_json(CONFIG_FILE, cfg)
     if raw.get("versao_pontos", 1) < 2:      # sistema de pontos antigo (valores altos e combo): troca pelo novo
@@ -459,6 +472,14 @@ class App:
                 self.nuvem = nuvem.Nuvem(lambda: self.cfg, self.cmd_q, log)
         except Exception:
             log("nuvem: " + traceback.format_exc())
+        self.local = None
+        try:
+            if rede_local is not None and self.cfg.get("local_ativo", True):
+                self.local = rede_local.Local(lambda: self.cfg, self.cmd_q, log)
+                if self.local.erro:
+                    log("rede local: " + self.local.erro)
+        except Exception:
+            log("rede local: " + traceback.format_exc())
         self.win = None
         self.w = {}
         self.tray = None
@@ -509,7 +530,7 @@ class App:
 
     # ---- nuvem: líder vê as tarefas ao vivo e valida
     def sync_soon(self):
-        if self.nuvem is None or self.snap_agendado or not self.nuvem.ativo():
+        if self.snap_agendado or not self.sync_ativo():
             return
         self.snap_agendado = True
         try:
@@ -517,13 +538,20 @@ class App:
         except Exception:
             self.snap_agendado = False
 
+    def sync_ativo(self):
+        return bool(self.local is not None or (self.nuvem is not None and self.nuvem.ativo()))
+
     def push_snapshot(self):
         self.snap_agendado = False
-        if self.nuvem is None or not self.nuvem.ativo():
+        if not self.sync_ativo():
             return
         try:
-            self.nuvem.enviar(self.state["date"], self.build_snapshot())
-            self.empurrar_estado()
+            snap = self.build_snapshot()
+            if self.local is not None:
+                self.local.definir(self.state["date"], snap)
+            if self.nuvem is not None and self.nuvem.ativo():
+                self.nuvem.enviar(self.state["date"], snap)
+                self.empurrar_estado()
         except Exception:
             log("snapshot: " + traceback.format_exc())
 
@@ -748,7 +776,7 @@ class App:
         tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
 
     # ---- configurações iguais em todos os computadores
-    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios"}
+    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo"}
 
     def empurrar_config(self):
         if self.nuvem is None or not self.nuvem.ativo():
@@ -876,6 +904,8 @@ class App:
                 log("pedido: " + traceback.format_exc())
 
     def avisar_lider(self, titulo, texto, prio=3):
+        if self.local is not None:
+            self.local.avisar(titulo, texto, prio)
         if self.nuvem is not None:
             self.nuvem.avisar(titulo, texto, prio)
 
@@ -1273,6 +1303,9 @@ class App:
             btns = [("Abrir a lista", self.open_window), ("Adiar", lambda: self.snooze(pid))]
         else:
             btns = [("Concluído", lambda: self.complete(pid)), ("Adiar %d min" % self.cfg["adiar_minutos"], lambda: self.snooze(pid))]
+        if self.local is not None and not p.get("local_n%d" % level):
+            p["local_n%d" % level] = True
+            self.local.avisar(("Caixa: " if level < 2 else "URGENTE: ") + p["label"], p["text"], 3 + level)
         if level == 0:
             self.beep(0)
             p["pop"] = self.card("br", 400, PINK, "#FFFFFF", p["label"], p["text"], btns, text_size=14)
@@ -2240,6 +2273,11 @@ class App:
             self.root.after(i * 2800, lambda f=f: self.show("Teste · " + f, ex[f], f, 5000, True))
 
     def quit(self):
+        try:
+            if self.local is not None:
+                self.local.sair()
+        except Exception:
+            pass
         try:
             if self.nuvem is not None:
                 self.nuvem.sair()
