@@ -112,7 +112,8 @@ DEFAULT_CONFIG = {
     "nuvem_codigo": "",
     "lider_url": LIDER_URL_PADRAO,
     "ntfy_ativo": True,
-    "pin_lider": "",
+    "pin_lider": "885682",
+    "pin_padrao_v1": False,
     "maquina_id": "",
     "maquina_nome": "",
     "local_ativo": True,
@@ -291,6 +292,12 @@ def load_config():
         import secrets as _sec
         cfg["local_pin"] = cfg.get("local_pin") or "%06d" % _sec.randbelow(1000000)
         cfg["local_codigo"] = cfg.get("local_codigo") or "".join(_sec.choice("23456789ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(24))
+        if raw:
+            save_json(CONFIG_FILE, cfg)
+    if not raw.get("pin_padrao_v1"):
+        cfg["pin_padrao_v1"] = True
+        if not str(cfg.get("pin_lider") or "").strip():
+            cfg["pin_lider"] = "885682"
         if raw:
             save_json(CONFIG_FILE, cfg)
     if raw.get("versao_pontos", 1) < 2:      # sistema de pontos antigo (valores altos e combo): troca pelo novo
