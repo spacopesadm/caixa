@@ -46,6 +46,10 @@ try:
 except Exception:
     nuvem = None
 try:
+    import agenda
+except Exception:
+    agenda = None
+try:
     import redelocal as rede_local
 except Exception:
     rede_local = None
@@ -70,6 +74,7 @@ STATE_FILE = os.path.join(BASE, "estado.json")
 LOG_FILE = os.path.join(BASE, "erro.log")
 PLACAR_FILE = os.path.join(BASE, "placar.json")
 ENVIOS_FILE = os.path.join(BASE, "envios_pendentes.json")
+AGENDA_FILE = os.path.join(BASE, "agenda.json")
 PRAZO_MIN, LEVE_MIN = 5, 15          # até 5 min: no prazo; até 15 min: atraso leve
 NIVEIS = [(0, "Aprendiz"), (100, "Dedicado"), (300, "Craque do Caixa"), (700, "Mestre do Caixa"), (1500, "Lenda da Loja")]
 
@@ -472,6 +477,14 @@ class App:
                 self.nuvem = nuvem.Nuvem(lambda: self.cfg, self.cmd_q, log)
         except Exception:
             log("nuvem: " + traceback.format_exc())
+        self.agenda = []
+        self.ag_est = {}          # estado dos avisos da agenda neste computador: id -> {next, pre, n, pop}
+        self.ag_win = None
+        try:
+            if agenda is not None:
+                self.agenda = agenda.limpar(agenda.mesclar([], load_json(AGENDA_FILE, [])))
+        except Exception:
+            log("agenda: " + traceback.format_exc())
         self.local = None
         try:
             if rede_local is not None and self.cfg.get("local_ativo", True):
@@ -831,7 +844,14 @@ class App:
                 "tarefas": tarefas, "faltando": faltando, "total": total, "urgentes": urg,
                 "rejeitadas": st.get("rejeitadas", []), "relatorio": bool(st.get("relatorio_gerado")),
                 "funcionarios": [{"id": e["id"], "nome": e["nome"]} for e in self.funcionarios()],
-                "lista": self.lista_snapshot()}
+                "lista": self.lista_snapshot(), "agenda": self.agenda_snapshot()}
+
+    def agenda_snapshot(self):
+        if agenda is None:
+            return []
+        corte = (dt.date.today() - dt.timedelta(days=1)).isoformat()
+        itens = [it for it in agenda.vivos(self.agenda) if it["data"] >= corte]
+        return [{k: it.get(k) for k in ("id", "data", "hora", "tipo", "titulo", "detalhe", "antes", "feito")} for it in itens[:80]]
 
     def lista_snapshot(self):
         bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}
@@ -854,6 +874,8 @@ class App:
 
     def aplicar_pedido(self, p):
         """Marcação feita no celular do funcionário. A hora e o autor vêm do pedido, então todos os computadores chegam ao mesmo resultado."""
+        if p.get("k") == "ag":
+            return self.pedido_agenda(p)
         kind, iid = p.get("k"), str(p.get("id"))
         try:
             ts = float(p.get("ts", 0)) / 1000.0
@@ -899,7 +921,7 @@ class App:
                 continue
             vistos.append(pid)
             try:
-                self.aplicar_pedido(p)
+                self.aplicar_pedido(dict(p, pid=pid))
             except Exception:
                 log("pedido: " + traceback.format_exc())
 
@@ -1381,6 +1403,10 @@ class App:
             self.pend.clear()
             self.apply_day()
             self.save()
+        try:
+            self.tick_agenda()
+        except Exception:
+            log("tick_agenda: " + traceback.format_exc())
         m = d.hour * 60 + d.minute
         a, p = self.ranges()
         ph = self.phase(m)
@@ -2036,6 +2062,11 @@ class App:
                 log("config_remota: " + traceback.format_exc())
         elif c[0] == "pedidos":
             self.on_pedidos(c[1], c[2])
+        elif c[0] == "agenda_remota":
+            try:
+                self.ag_remota(c[1])
+            except Exception:
+                log("agenda_remota: " + traceback.format_exc())
         elif c[0] == "validacoes":
             try:
                 self.on_validacoes(c[1], c[2])
@@ -2074,6 +2105,264 @@ class App:
                   cursor="hand2").pack(side="right", padx=8)
 
     # ---- horário só de hoje (campanha, dia diferente) sem mexer na configuração geral
+    # ---- agenda: entregas, condicionais, atendimentos, lembretes e avisos para um dia e hora
+    def ag_gravar(self, it):
+        """Guarda o item (aqui, nos outros computadores e no celular)."""
+        it["mod"] = int(time.time() * 1000)
+        self.agenda = agenda.limpar(agenda.mesclar(self.agenda, [it]))
+        save_json(AGENDA_FILE, self.agenda)
+        if self.nuvem is not None and self.nuvem.ativo():
+            self.nuvem.escrever([("agenda/" + it["id"], it)])
+        self.sync_soon()
+
+    def ag_remota(self, dados):
+        if agenda is None or not isinstance(dados, dict):
+            return
+        antes = json.dumps(self.agenda, sort_keys=True)
+        novo = agenda.limpar(agenda.mesclar(self.agenda, list(dados.values())))
+        if json.dumps(novo, sort_keys=True) == antes:
+            return
+        self.agenda = novo
+        save_json(AGENDA_FILE, self.agenda)
+        self.sync_soon()
+        self.ag_atualizar_janela()
+
+    def pedido_agenda(self, p):
+        """Item novo ou 'feito' vindo do celular. O id vem do pedido, então vários computadores chegam ao mesmo resultado."""
+        if agenda is None:
+            return False
+        try:
+            if p.get("op") == "feito":
+                it = next((x for x in self.agenda if x["id"] == str(p.get("id"))), None)
+                if not it or it.get("feito"):
+                    return False
+                it = dict(it, feito=float(p.get("ts", 0)) / 1000.0 or time.time(), mod=int(p.get("ts", 0)) or int(time.time() * 1000))
+                self.agenda = agenda.mesclar(self.agenda, [it])
+            else:
+                i = p.get("item") or {}
+                iid = "a" + re.sub(r"[^A-Za-z0-9]", "", str(p.get("pid", "")))[-9:]
+                if any(x["id"] == iid for x in self.agenda):
+                    return False
+                it = agenda.criar(agenda.parse_data(i.get("data", "")), agenda.parse_hora(i.get("hora", "")), i.get("tipo", "Aviso"),
+                                  i.get("titulo", ""), i.get("detalhe", ""), int(i.get("antes", 0) or 0), id_=iid)
+                it["mod"] = int(p.get("ts", 0)) or it["mod"]
+                self.agenda = agenda.mesclar(self.agenda, [it])
+        except Exception as e:
+            log("pedido agenda: %r" % (e,))
+            return False
+        save_json(AGENDA_FILE, self.agenda)
+        if self.nuvem is not None and self.nuvem.ativo():
+            self.nuvem.escrever([("agenda/" + it["id"], it)])
+        self.sync_soon()
+        self.ag_atualizar_janela()
+        return True
+
+    def ag_fechar(self, iid):
+        e = self.ag_est.get(iid)
+        if e and e.get("pop") and not e["pop"].closed:
+            e["pop"].close()
+        if e:
+            e["pop"] = None
+
+    def ag_feito(self, iid):
+        it = next((x for x in self.agenda if x["id"] == iid), None)
+        if it:
+            self.ag_fechar(iid)
+            self.ag_gravar(dict(it, feito=time.time()))
+            self.ag_atualizar_janela()
+
+    def ag_adiar(self, iid):
+        e = self.ag_est.setdefault(iid, {"next": 0, "pre": False, "n": 0, "pop": None})
+        e["next"] = time.time() + self.cfg.get("adiar_minutos", 5) * 60
+        self.ag_fechar(iid)
+
+    def ag_mostrar(self, it, pre=False, atraso=0.0):
+        e = self.ag_est[it["id"]]
+        self.ag_fechar(it["id"])
+        corpo = it["titulo"] + ("\n" + it["detalhe"] if it.get("detalhe") else "")
+        iid = it["id"]
+        if pre:
+            self.beep(0)
+            e["pop"] = self.card("br", 440, BLUE, "#FFFFFF", "Daqui a %d min · %s às %s" % (int(it.get("antes", 0)), it["tipo"], it["hora"]), corpo,
+                                 [("Ok", None), ("Já fiz", lambda: self.ag_feito(iid))], text_size=14)
+            self.avisar_lider("Agenda: %s" % it["tipo"], "Daqui a %d min (%s): %s" % (int(it.get("antes", 0)), it["hora"], corpo), 3)
+            return
+        cor = RED if atraso >= 15 else PINK
+        if atraso >= 15:
+            self.alarm(2)
+        else:
+            self.alarm(1)
+        e["pop"] = self.card("tc", 760, cor, "#FFFFFF", "%s · %s%s" % (it["tipo"], it["hora"], " (atrasado %d min)" % int(atraso) if atraso >= 2 else ""), corpo,
+                             [("Feito", lambda: self.ag_feito(iid)), ("Adiar %d min" % self.cfg.get("adiar_minutos", 5), lambda: self.ag_adiar(iid))],
+                             text_size=18)
+        self.root.after(0, lambda: self.edge_flash(cor, 4000))
+        if e["n"] == 1:
+            self.avisar_lider("Agenda: %s agora" % it["tipo"], corpo, 4)
+
+    def tick_agenda(self):
+        if agenda is None:
+            return
+        agora = time.time()
+        for it in agenda.da_data(self.agenda, today()):
+            if it.get("feito"):
+                self.ag_fechar(it["id"])
+                continue
+            try:
+                t = agenda.prazo(it)
+            except Exception:
+                continue
+            e = self.ag_est.setdefault(it["id"], {"next": 0, "pre": False, "n": 0, "pop": None})
+            antes = int(it.get("antes", 0) or 0) * 60
+            if antes and not e["pre"] and t - antes <= agora < t:
+                e["pre"] = True
+                self.ag_mostrar(it, pre=True)
+            elif agora >= t and agora >= e["next"]:
+                e["n"] += 1
+                e["next"] = agora + max(1, int(self.cfg.get("repetir_urgente_minutos", 5))) * 60
+                self.ag_mostrar(it, atraso=(agora - t) / 60.0)
+
+    def ag_atualizar_janela(self):
+        try:
+            if self.ag_win is not None and self.ag_win.winfo_exists():
+                self.ag_win.recarregar()
+        except Exception:
+            pass
+
+    def open_agenda(self):
+        if agenda is None:
+            return
+        from tkinter import ttk, messagebox
+        if self.ag_win is not None and self.ag_win.winfo_exists():
+            self.ag_win.lift()
+            self.ag_win.focus_force()
+            return
+        w = tk.Toplevel(self.root)
+        self.ag_win = w
+        w.title("Agenda")
+        w.configure(bg=BG)
+        w.geometry("+%d+%d" % (max(20, self.root.winfo_screenwidth() // 2 - 400), 60))
+        edit = {"id": None}
+        V = {"tipo": tk.StringVar(value=agenda.TIPOS[0]), "data": tk.StringVar(), "hora": tk.StringVar(value="14:00"),
+             "antes": tk.StringVar(value="15"), "titulo": tk.StringVar()}
+        V["data"].set(agenda.data_br(today()))
+        f = tk.Frame(w, bg=BG)
+        f.pack(fill="x", padx=16, pady=(14, 6))
+        tk.Label(f, text="Novo aviso / compromisso", font=(FONT, 12, "bold"), bg=BG, fg=INK).grid(row=0, column=0, columnspan=6, sticky="w")
+        for c, (txt, wd) in enumerate([("O que é", 0), ("Dia (dd/mm/aaaa)", 0), ("Hora", 0), ("Avisar antes (min)", 0)]):
+            tk.Label(f, text=txt, font=(FONT, 9), bg=BG, fg=GREY).grid(row=1, column=c, sticky="w", padx=(0, 8), pady=(8, 0))
+        ttk.Combobox(f, textvariable=V["tipo"], values=agenda.TIPOS, width=18, state="readonly").grid(row=2, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(f, textvariable=V["data"], width=14).grid(row=2, column=1, sticky="w", padx=(0, 8))
+        ttk.Entry(f, textvariable=V["hora"], width=7).grid(row=2, column=2, sticky="w", padx=(0, 8))
+        ttk.Combobox(f, textvariable=V["antes"], values=[str(x) for x in agenda.ANTES], width=6, state="readonly").grid(row=2, column=3, sticky="w")
+        tk.Label(f, text="Título (ex.: Condicional para Fulana)", font=(FONT, 9), bg=BG, fg=GREY).grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        ttk.Entry(f, textvariable=V["titulo"], width=70).grid(row=4, column=0, columnspan=4, sticky="we")
+        tk.Label(f, text="Detalhes: endereço, o que explicar ao entregador, telefone...", font=(FONT, 9), bg=BG, fg=GREY).grid(row=5, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        det = tk.Text(f, height=4, width=70, font=(FONT, 10), wrap="word")
+        det.grid(row=6, column=0, columnspan=4, sticky="we")
+        msg = tk.Label(f, text="", font=(FONT, 9), bg=BG, fg=RED, anchor="w", justify="left", wraplength=640)
+        msg.grid(row=8, column=0, columnspan=4, sticky="w", pady=(4, 0))
+
+        cols = ("quando", "tipo", "titulo", "status")
+        tv = ttk.Treeview(w, columns=cols, show="headings", height=11, selectmode="browse")
+        for c, t, wd in (("quando", "Quando", 120), ("tipo", "Tipo", 130), ("titulo", "O que", 380), ("status", "Situação", 90)):
+            tv.heading(c, text=t)
+            tv.column(c, width=wd, anchor="w")
+        tv.pack(fill="both", expand=True, padx=16, pady=(6, 4))
+        ordem = []
+
+        def limpar_form():
+            edit["id"] = None
+            V["tipo"].set(agenda.TIPOS[0])
+            V["data"].set(agenda.data_br(today()))
+            V["hora"].set("14:00")
+            V["antes"].set("15")
+            V["titulo"].set("")
+            det.delete("1.0", "end")
+            btn_add.configure(text="Adicionar")
+            msg.configure(text="")
+
+        def recarregar():
+            tv.delete(*tv.get_children())
+            ordem.clear()
+            corte = (dt.date.today() - dt.timedelta(days=3)).isoformat()
+            hoje = today()
+            agora = time.time()
+            for it in agenda.vivos(self.agenda):
+                if it["data"] < corte:
+                    continue
+                if it.get("feito"):
+                    st = "Feito"
+                elif it["data"] < hoje or (it["data"] == hoje and agenda.prazo(it) < agora):
+                    st = "Atrasado" if it["data"] <= hoje else ""
+                elif it["data"] == hoje:
+                    st = "Hoje"
+                else:
+                    st = ""
+                ordem.append(it["id"])
+                tv.insert("", "end", iid=it["id"], values=("%s %s" % (agenda.data_br(it["data"])[:5], it["hora"]), it["tipo"], it["titulo"], st))
+        w.recarregar = recarregar
+
+        def adicionar():
+            try:
+                d = agenda.parse_data(V["data"].get())
+                h = agenda.parse_hora(V["hora"].get())
+                novo = agenda.criar(d, h, V["tipo"].get(), V["titulo"].get(), det.get("1.0", "end"), int(V["antes"].get() or 0), id_=edit["id"])
+            except ValueError as ex:
+                msg.configure(text=str(ex))
+                return
+            if edit["id"]:
+                self.ag_est.pop(edit["id"], None)
+            self.ag_gravar(novo)
+            limpar_form()
+            recarregar()
+            msg.configure(text="Salvo.", fg=GREEN)
+            w.after(2500, lambda: msg.configure(text="", fg=RED))
+
+        def selecionado():
+            s = tv.selection()
+            return next((x for x in self.agenda if s and x["id"] == s[0]), None)
+
+        def editar(_e=None):
+            it = selecionado()
+            if not it:
+                return
+            edit["id"] = it["id"]
+            V["tipo"].set(it["tipo"])
+            V["data"].set(agenda.data_br(it["data"]))
+            V["hora"].set(it["hora"])
+            V["antes"].set(str(it.get("antes", 0)))
+            V["titulo"].set(it["titulo"])
+            det.delete("1.0", "end")
+            det.insert("1.0", it.get("detalhe", ""))
+            btn_add.configure(text="Salvar alteração")
+
+        def marcar():
+            it = selecionado()
+            if it:
+                self.ag_feito(it["id"])
+
+        def excluir():
+            it = selecionado()
+            if it and messagebox.askyesno("Excluir", "Excluir \"%s\"?" % it["titulo"], parent=w):
+                self.ag_fechar(it["id"])
+                self.ag_gravar(dict(it, apagado=True))
+                if edit["id"] == it["id"]:
+                    limpar_form()
+                recarregar()
+        tv.bind("<Double-1>", editar)
+        bar = tk.Frame(f, bg=BG)
+        bar.grid(row=7, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        btn_add = tk.Button(bar, text="Adicionar", command=adicionar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=16, pady=4, cursor="hand2")
+        btn_add.pack(side="left")
+        tk.Button(bar, text="Limpar", command=limpar_form, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        b2 = tk.Frame(w, bg=BG)
+        b2.pack(fill="x", padx=16, pady=(0, 14))
+        tk.Button(b2, text="Marcar como feito", command=marcar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
+        tk.Button(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
+        tk.Button(b2, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="right")
+        recarregar()
+
     def open_hoje(self):
         hoje = dt.date.today()
         iso = hoje.isoformat()
@@ -2216,6 +2505,7 @@ class App:
             pystray.MenuItem("Abrir checklist", put("open"), default=True),
             pystray.MenuItem("Cliente na frente (pausar avisos)", put("hold")),
             pystray.MenuItem("Trocar funcionário", put("switch")),
+            pystray.MenuItem("Agenda", put("agenda")),
             pystray.MenuItem("Horário de hoje", put("hoje")),
             pystray.MenuItem("Configurações", put("settings")),
             pystray.MenuItem("Ver os formatos de aviso", put("test")),
@@ -2260,6 +2550,8 @@ class App:
                 self.open_switch()
             elif c == "hoje":
                 self.open_hoje()
+            elif c == "agenda":
+                self.open_agenda()
             elif c == "quem":
                 self.pedir_funcionario()
             elif c == "quit":
@@ -2329,6 +2621,8 @@ class App:
                   padx=12, pady=4).pack(fill="x", pady=(0, 4))
         tk.Button(right, text="Configurações", command=self.open_settings, font=(FONT, 10, "bold"), relief="solid", bd=1,
                   bg=PAPER, fg=INK, cursor="hand2", padx=12, pady=3).pack(fill="x")
+        tk.Button(right, text="Agenda (entregas e avisos)", command=self.open_agenda, font=(FONT, 10, "bold"), relief="solid", bd=1,
+                  bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
         tk.Button(right, text="Horário de hoje", command=self.open_hoje, font=(FONT, 10), relief="solid", bd=1,
                   bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
         W["btn_emp"] = tk.Button(right, text="Trocar funcionário", command=self.open_switch, font=(FONT, 10), relief="solid", bd=1,
@@ -2598,6 +2892,7 @@ class App:
         save_json(CONFIG_FILE, self.cfg)
         if not remoto:
             self.empurrar_config()
+        self.sync_soon()
         self.next_random = self.sched_random()
         self.fired = {k for k in self.fired if not k.startswith("lem")}
         if self.win is not None and self.win.winfo_exists():

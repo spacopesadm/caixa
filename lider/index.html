@@ -39,6 +39,7 @@ button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14p
 .tabs{display:flex;gap:6px;margin:6px 0 4px}.tab{flex:1;background:var(--card);color:var(--mut);border:1px solid var(--line)}.tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .sub a{color:var(--blue)}
 select,input{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+.card label{display:block;margin:10px 0 4px;font-size:14px;color:var(--mut)}
 .setup label{display:block;margin:10px 0 4px;font-size:14px;color:var(--mut)}
 .err{color:var(--bad);font-size:14px;margin-top:8px}
 </style>
@@ -126,6 +127,42 @@ window.entrarPin=function(){
     render();
   });
 };
+var AGTIPOS=["Entrega","Condicional","Buscar condicional","Atendimento","Lembrete","Aviso"];
+S.ag={tipo:"Entrega",data:"",hora:"",antes:"15",titulo:"",detalhe:"",msg:""};
+function lerAg(){var o={};["tipo","data","hora","antes","titulo","detalhe"].forEach(function(k){var e=document.getElementById("ag_"+k);if(e)o[k]=e.value});return o}
+window.addAg=function(){
+  var s=S.snap;if(!s)return;var f=lerAg();
+  if(!f.titulo||!f.titulo.trim()){S.ag.msg="Escreva o que é (ex.: Condicional para Fulana).";S.ag.erro=1;render();return}
+  if(!f.data||!f.hora){S.ag.msg="Escolha o dia e a hora.";S.ag.erro=1;render();return}
+  var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x");
+  put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:S.func||"",ts:ts,item:f}).then(function(){
+    S.agFresh=true;S.ag={tipo:f.tipo,data:f.data,hora:"",antes:f.antes,titulo:"",detalhe:"",msg:"Enviado! Aparece na lista em alguns segundos.",erro:0};render()
+  }).catch(function(){S.ag.msg="Não consegui enviar. Verifique a conexão.";S.ag.erro=1;render()});
+};
+window.feitoAg=function(id){
+  var s=S.snap;if(!s)return;var ts=Date.now();S.env["ag|"+id]=ts;render();
+  put("pedidos/"+s.data+"/ag"+ts+"f"+Math.random().toString(36).slice(2,6),{k:"ag",op:"feito",id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env["ag|"+id];S.erro="Não consegui enviar.";render()});
+};
+function renderAgenda(s){
+  var a=S.ag,h='<div class="card"><b>Novo aviso / compromisso</b>'+
+   '<label>O que é</label><select id="ag_tipo">'+AGTIPOS.map(function(t){return '<option'+(t===a.tipo?" selected":"")+'>'+t+'</option>'}).join("")+'</select>'+
+   '<label>Título</label><input id="ag_titulo" placeholder="Ex.: Condicional para Fulana" value="'+esc(a.titulo)+'">'+
+   '<div style="display:flex;gap:8px"><div style="flex:1"><label>Dia</label><input id="ag_data" type="date" value="'+esc(a.data||hoje())+'"></div>'+
+   '<div style="flex:1"><label>Hora</label><input id="ag_hora" type="time" value="'+esc(a.hora)+'"></div></div>'+
+   '<label>Avisar antes (minutos)</label><select id="ag_antes">'+["0","5","10","15","30","60"].map(function(m){return '<option'+(m===a.antes?" selected":"")+'>'+m+'</option>'}).join("")+'</select>'+
+   '<label>Detalhes (endereço, o que explicar ao entregador...)</label><textarea id="ag_detalhe" rows="3" style="width:100%;font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)">'+esc(a.detalhe)+'</textarea>'+
+   '<div class="acts"><button class="b-ok" onclick="addAg()">Adicionar</button></div>'+(a.msg?'<div class="'+(a.erro?"err":"sub")+'" style="margin-top:8px">'+esc(a.msg)+'</div>':'')+'</div>';
+  var its=(s.agenda||[]).slice().sort(function(x,y){return (x.data+x.hora)<(y.data+y.hora)?-1:1});
+  h+='<h2 style="font-size:15px;margin:14px 2px 6px">Próximos</h2>';
+  if(!its.length)h+='<p class="empty">Nada agendado.</p>';
+  its.forEach(function(it){
+    var feito=it.feito||S.env["ag|"+it.id];
+    h+='<div class="card"><div class="sub">'+dataBR(it.data)+' · '+esc(it.hora)+' · '+esc(it.tipo)+(feito?' · feito':'')+'</div><b>'+esc(it.titulo)+'</b>'+
+       (it.detalhe?'<div style="white-space:pre-wrap;margin-top:4px">'+esc(it.detalhe)+'</div>':'')+
+       (feito?'':'<div class="acts"><button class="b-ok" onclick="feitoAg(\''+it.id+'\')">Feito</button></div>')+'</div>';
+  });
+  return h;
+}
 window.modo=function(m){S.modo=m;guardar("cx_modo",m);render()};
 window.escolherFunc=function(id){S.func=id;guardar("cx_func",id);render()};
 window.marcar=function(k,id){
@@ -137,6 +174,7 @@ window.marcar=function(k,id){
 
 function abas(){
   return '<div class="tabs"><button class="tab'+(S.modo==="func"?" on":"")+'" onclick="modo(\'func\')">Funcionário</button>'+
+         '<button class="tab'+(S.modo==="agenda"?" on":"")+'" onclick="modo(\'agenda\')">Agenda</button>'+
          '<button class="tab'+(S.modo==="lider"?" on":"")+'" onclick="modo(\'lider\')">Líder</button></div>';
 }
 
@@ -193,6 +231,14 @@ function render(){
   if(S.modo==="lider"&&S.meta&&S.meta.pin&&!S.pinOk){
     $.innerHTML=h+'<div class="card setup"><p>Área do líder. Digite o PIN.</p><input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">'+
       '<div class="acts"><button class="b-ok" onclick="entrarPin()">Entrar</button></div>'+(S.erroPin?'<div class="err">'+esc(S.erroPin)+'</div>':'')+'</div>';
+    return;
+  }
+  if(S.modo==="agenda"){
+    if(!s){h+=S.carregando?'<p class="empty">Carregando...</p>':'<p class="empty">Nenhum dado de hoje ainda. O programa do caixa precisa estar aberto.</p>';$.innerHTML=h;return}
+    var keep=lerAg(),ae=document.activeElement,aid=ae&&ae.id,ss=ae&&ae.selectionStart,se=ae&&ae.selectionEnd,y1=window.scrollY;
+    if(!S.agFresh&&document.getElementById("ag_titulo"))for(var k in keep)S.ag[k]=keep[k];S.agFresh=false;
+    $.innerHTML=h+renderAgenda(s);window.scrollTo(0,y1);
+    if(aid&&aid.indexOf("ag_")===0){var ne=document.getElementById(aid);if(ne){ne.focus();try{if(ss!=null)ne.setSelectionRange(ss,se)}catch(e){}}}
     return;
   }
   if(S.modo==="func"){

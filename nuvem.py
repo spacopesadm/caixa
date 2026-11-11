@@ -251,6 +251,10 @@ class Nuvem:
             cfg_r = _req("GET", base + "/config.json")
             if cfg_r and self._novo("config", cfg_r):
                 self.cmd_q.put(("config_remota", cfg_r))
+        if self.ciclos % 3 == 1:
+            ag = _req("GET", base + "/agenda.json") or {}
+            if ag and self._novo("agenda", ag):
+                self.cmd_q.put(("agenda_remota", ag))
         ped = _req("GET", "%s/pedidos/%s.json" % (base, dia)) or {}
         if ped and self._novo("pedidos", ped):
             self.cmd_q.put(("pedidos", dia, ped))
