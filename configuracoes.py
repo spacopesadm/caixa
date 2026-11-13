@@ -665,9 +665,15 @@ def abrir(app):
         except ValueError as e:
             messagebox.showerror("Confira os dados", str(e), parent=w)
             return
+        try:
+            app.apply_config(novo)
+        except Exception as e:
+            import traceback
+            messagebox.showerror("Não consegui aplicar", "As alterações foram gravadas no disco, mas deu um erro ao aplicar:\n\n%s\n\n"
+                                 "Feche e abra o programa. Se repetir, mande o arquivo erro.log." % e, parent=w)
+            return
         w.destroy()
         app.settings_win = None
-        app.apply_config(novo)
         app.show("Configurações", "Salvo! As mudanças já estão valendo.", "joy", 4000, True)
 
     def restaurar():

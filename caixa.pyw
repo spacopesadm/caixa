@@ -807,6 +807,7 @@ class App:
     def config_remota(self, c):
         try:
             rev = int(c.get("rev", 0))
+            self.rev_visto = max(getattr(self, "rev_visto", 0), rev)
             if rev <= int(self.cfg.get("cfg_rev", 0)):
                 return
             dados = json.loads(c.get("json") or "{}")
@@ -2894,19 +2895,25 @@ class App:
     def apply_config(self, new, remoto=False):
         self.cfg = new
         if not remoto:
-            self.cfg["cfg_rev"] = int(time.time() * 1000)
-        self.apply_day()
-        save_json(CONFIG_FILE, self.cfg)
-        if not remoto:
-            self.empurrar_config()
-        self.sync_soon()
-        self.next_random = self.sched_random()
-        self.fired = {k for k in self.fired if not k.startswith("lem")}
-        if self.win is not None and self.win.winfo_exists():
-            self.win.destroy()
-            self.win, self.w = None, {}
-            self.open_window()
-        self.refresh()
+            # a revisão tem de ser maior que qualquer uma já vista, mesmo que o relógio deste computador esteja atrasado
+            self.cfg["cfg_rev"] = max(int(time.time() * 1000), int(getattr(self, "rev_visto", 0)) + 1, int(new.get("cfg_rev", 0)) + 1)
+        save_json(CONFIG_FILE, self.cfg)             # primeiro grava no disco; o resto pode falhar sem perder a alteração
+        try:
+            self.apply_day()
+            if not remoto:
+                self.empurrar_config()
+            self.sync_soon()
+            self.next_random = self.sched_random()
+            self.fired = {k for k in self.fired if not k.startswith("lem")}
+            if self.win is not None and self.win.winfo_exists():
+                self.win.destroy()
+                self.win, self.w = None, {}
+                self.open_window()
+            self.refresh()
+        except Exception:
+            log("apply_config: " + traceback.format_exc())
+            if not remoto:
+                raise
 
     # ---- laço principal
     def tick(self):
