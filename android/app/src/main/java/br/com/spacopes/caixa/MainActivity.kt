@@ -42,8 +42,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         raiz = FrameLayout(this)
         setContentView(raiz)
-        title = "Painel do Caixa"
-        if (Build.VERSION.SDK_INT >= 33) {
+        title = if (BuildConfig.VENDEDOR) "Entregas Spaço Pés" else "Painel do Caixa"
+        if (!BuildConfig.VENDEDOR && Build.VERSION.SDK_INT >= 33) {
             try { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1) } catch (e: Exception) { }
         }
         if (Dados.pareado(this)) mostrarWeb() else mostrarPareamento()
@@ -51,7 +51,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (Dados.pareado(this)) {
+        if (!BuildConfig.VENDEDOR && Dados.pareado(this)) {
             try { AvisosService.iniciar(this) } catch (e: Exception) { }
         }
     }
@@ -84,8 +84,8 @@ class MainActivity : Activity() {
             v.setPadding(0, dp(6), 0, dp(6))
             return v
         }
-        col.addView(texto("Conectar ao computador do caixa", 22f, true))
-        col.addView(texto("1) Deixe o celular no mesmo Wi-Fi da loja.\n2) No computador, abra Configurações > Celular (Wi-Fi) e veja o PIN de 6 números.\n3) Digite o PIN aqui e toque em Conectar.", 15f))
+        col.addView(texto(if (BuildConfig.VENDEDOR) "Entregas Spaço Pés" else "Conectar ao computador do caixa", 22f, true))
+        col.addView(texto("1) Deixe o celular no mesmo Wi-Fi da loja.\n2) Peça ao caixa o PIN de 6 números (Configurações > Celular (Wi-Fi), no computador).\n3) Digite o PIN aqui e toque em Conectar.", 15f))
         val pin = EditText(this)
         pin.hint = "PIN de 6 números"
         pin.inputType = InputType.TYPE_CLASS_NUMBER
@@ -129,9 +129,11 @@ class MainActivity : Activity() {
                     btn.isEnabled = true
                     if (codigo.isNotEmpty()) {
                         Dados.salvar(this, host, codigo)
-                        try { AvisosService.iniciar(this) } catch (e: Exception) { }
+                        if (!BuildConfig.VENDEDOR) {
+                            try { AvisosService.iniciar(this) } catch (e: Exception) { }
+                        }
                         mostrarWeb()
-                        pedirBateria()
+                        if (!BuildConfig.VENDEDOR) pedirBateria()
                     } else {
                         status.setTextColor(Color.parseColor("#B00020"))
                         status.text = msg
@@ -156,7 +158,7 @@ class MainActivity : Activity() {
     // ---------- página (a mesma do navegador, servida pelo computador do caixa)
     private fun urlPagina(): String {
         val base = Dados.base(this)
-        return base + "/#u=" + base + "&t=" + Dados.codigo(this)
+        return base + (if (BuildConfig.VENDEDOR) "/entregas.html" else "/") + "#u=" + base + "&t=" + Dados.codigo(this)
     }
 
     private fun mostrarWeb() {

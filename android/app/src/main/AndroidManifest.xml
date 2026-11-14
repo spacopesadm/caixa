@@ -15,7 +15,7 @@
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
-        android:label="Painel do Caixa"
+        android:label="@string/app_name"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.Light.DarkActionBar">
 

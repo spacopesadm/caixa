@@ -54,17 +54,18 @@ jobs:
       - name: Compilar o app Android
         env:
           VERSAO: ${{ github.run_number }}
-        run: gradle -p android assembleRelease --no-daemon --stacktrace
+        run: gradle -p android assembleCaixaRelease assembleVendedorRelease --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: PainelDoCaixa-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/*/release/*.apk
       - name: Anexar o APK na versão
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk PainelDoCaixa.apk
-          gh release upload "v${{ github.run_number }}" PainelDoCaixa.apk --clobber
+          cp android/app/build/outputs/apk/caixa/release/app-caixa-release.apk PainelDoCaixa.apk
+          cp android/app/build/outputs/apk/vendedor/release/app-vendedor-release.apk EntregasVendedor.apk
+          gh release upload "v${{ github.run_number }}" PainelDoCaixa.apk EntregasVendedor.apk --clobber
 
   pagina-lider:
     runs-on: ubuntu-latest

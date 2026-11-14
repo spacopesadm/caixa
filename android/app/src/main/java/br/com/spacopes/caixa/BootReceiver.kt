@@ -7,7 +7,7 @@ import android.content.Intent
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         try {
-            if (Dados.pareado(context)) AvisosService.iniciar(context)
+            if (!BuildConfig.VENDEDOR && Dados.pareado(context)) AvisosService.iniciar(context)
         } catch (e: Exception) {
         }
     }

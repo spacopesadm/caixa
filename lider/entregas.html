@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agendar entregas</title>
+<link rel="icon" href="icone.png" type="image/png">
+<meta name="theme-color" content="#1B2433">
+<style>
+:root{--bg:#F3F5F8;--card:#fff;--ink:#1B2433;--mut:#5B6878;--line:#E1E6ED;--ok:#147D56;--okbg:#E4F4EC;--warn:#B8600A;--warnbg:#FDF0DE;--bad:#C4262E;--badbg:#FCE7E8;--acc:#B8975A;--blue:#2347D6}
+@media (prefers-color-scheme:dark){:root{--bg:#10141B;--card:#1A212C;--ink:#EEF1F6;--mut:#9AA6B6;--line:#2A3342;--okbg:#12382A;--warnbg:#3A2A12;--badbg:#3F1A1D}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#1B2433;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
+header img{width:36px;height:36px;border-radius:50%}
+header b{font-size:17px}
+main{max-width:640px;margin:0 auto;padding:12px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+label{display:block;margin:12px 0 4px;font-size:14px;color:var(--mut)}
+label i{color:var(--bad);font-style:normal}
+input,select,textarea{width:100%;font:inherit;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.row{display:flex;gap:10px}.row>div{flex:1;min-width:0}
+button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer}
+.go{background:var(--acc);color:#fff;font-weight:700;width:100%;margin-top:16px;font-size:17px}
+.no{background:var(--badbg);color:var(--bad);padding:8px 12px;font-size:14px}
+.info{border-radius:10px;padding:9px 11px;margin-top:8px;font-size:14px}
+.i-ok{background:var(--okbg);color:var(--ok)}.i-warn{background:var(--warnbg);color:var(--warn)}.i-bad{background:var(--badbg);color:var(--bad)}.i-n{background:var(--bg);color:var(--mut)}
+.sub{font-size:13px;color:var(--mut)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--bg);color:var(--mut)}
+h2{font-size:15px;margin:18px 2px 6px}
+.empty{color:var(--mut);text-align:center;padding:14px}
+.dia{font-weight:700;margin:16px 2px 4px;font-size:14px;color:var(--mut)}
+.jan{font-weight:700;margin:8px 2px 2px;font-size:14px}
+</style>
+</head>
+<body>
+<header><img src="icone.png" alt=""><b>Agendar entregas</b></header>
+<main id="app"><p class="empty">Carregando...</p></main>
+<script>
+(function(){
+"use strict";
+var $=document.getElementById("app");
+var S={u:"",t:"",snap:null,erro:"",bairros:{},lista:[],pronto:false,env:{},msg:"",msgErro:false};
+var TIPOS=["Entrega","Condicional (Levar)","Condicional (Buscar)","Troca"];
+var DIAS=["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
+function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function ler(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function pad(n){return ("0"+n).slice(-2)}
+function iso(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function brData(s){var p=s.split("-");return p[2]+"/"+p[1]}
+function diaSemana(isoStr){var p=isoStr.split("-");return new Date(+p[0],+p[1]-1,+p[2]).getDay()}  // 0=domingo
+function pyDia(isoStr){return (diaSemana(isoStr)+6)%7}                                              // 0=segunda (igual ao programa do caixa)
+function norm(s){return String(s||"").trim().toLowerCase()}
+
+(function(){
+  var h=location.hash.replace(/^#/,"");
+  if(h){var p={};h.split("&").forEach(function(x){var i=x.indexOf("=");if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1))});
+    if(p.u&&p.t){guardar("cx_u",p.u);guardar("cx_t",p.t);history.replaceState(null,"",location.pathname+location.search)}}
+  S.u=ler("cx_u").replace(/\/+$/,"");S.t=ler("cx_t");
+})();
+function url(c){return S.u+"/lojas/"+encodeURIComponent(S.t)+"/"+c+".json"}
+function get(c){return fetch(url(c),{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function put(c,d){return fetch(url(c),{method:"PUT",body:JSON.stringify(d)}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+
+function ent(){return (S.snap&&S.snap.entregas)||{janelas:[],dias:[],vendedores:[]}}
+function proximoDiaValido(){
+  var d=new Date(),e=ent();
+  for(var i=0;i<14;i++){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i);if(e.dias.indexOf((x.getDay()+6)%7)>=0)return iso(x)}
+  return iso(d);
+}
+function val(id){var e=document.getElementById(id);return e?e.value:""}
+function janIni(j){return j.split("-")[0]}
+
+// ---------- formulário (montado uma vez; o polling não mexe nele)
+function montarForm(){
+  var e=ent(),b=S.bairros;
+  var lv=ler("ev_vend");
+  var dl='<datalist id="dl_bairros">'+Object.keys(b).map(function(k){return '<option value="'+esc(b[k].bairro)+'">'}).join("")+'</datalist>'+
+         '<datalist id="dl_vend">'+(e.vendedores||[]).map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist>';
+  $.innerHTML='<div class="card"><b>Novo agendamento</b>'+dl+
+    '<label>Vendedor(a) <i>*</i></label><input id="f_vend" list="dl_vend" autocomplete="off" value="'+esc(lv)+'" placeholder="Seu nome">'+
+    '<label>O que é <i>*</i></label><select id="f_tipo">'+TIPOS.map(function(t){return '<option>'+t+'</option>'}).join("")+'</select>'+
+    '<label>Nome do cliente <i>*</i></label><input id="f_cliente" autocomplete="off">'+
+    '<label>Telefone <i>*</i></label><input id="f_tel" type="tel" inputmode="numeric" placeholder="(33) 99999-9999" autocomplete="off">'+
+    '<label>Bairro <i>*</i></label><input id="f_bairro" list="dl_bairros" autocomplete="off" placeholder="Comece a digitar o bairro">'+
+    '<div id="i_bairro"></div>'+
+    '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div>'+
+    '<div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
+    '<div><label>Horário <i>*</i></label><select id="f_jan"></select></div></div>'+
+    '<div id="i_jan"></div>'+
+    '<label>Rua, número e observações</label><textarea id="f_det" rows="3" placeholder="Ex.: Rua das Flores, 120 - casa azul. Levar maquininha."></textarea>'+
+    '<button class="go" id="b_enviar">Agendar</button><div id="f_msg"></div></div>'+
+    '<div id="lista"></div>';
+  document.getElementById("f_tel").addEventListener("input",function(ev){
+    var d=this.value.replace(/\D/g,"").slice(0,11),o=d;
+    if(d.length>2)o="("+d.slice(0,2)+") "+d.slice(2,d.length>10?7:6)+(d.length>(d.length>10?7:6)?"-"+d.slice(d.length>10?7:6):"");
+    this.value=o});
+  document.getElementById("f_cep").addEventListener("input",function(){var d=this.value.replace(/\D/g,"").slice(0,8);this.value=d.length>5?d.slice(0,5)+"-"+d.slice(5):d});
+  document.getElementById("f_bairro").addEventListener("input",infoBairro);
+  document.getElementById("f_data").addEventListener("change",atualizaJanelas);
+  document.getElementById("f_jan").addEventListener("change",infoJanela);
+  document.getElementById("f_vend").addEventListener("change",function(){guardar("ev_vend",this.value.trim())});
+  document.getElementById("b_enviar").addEventListener("click",enviar);
+  atualizaJanelas();S.pronto=true;
+}
+function infoBairro(){
+  var b=S.bairros[norm(val("f_bairro"))],el=document.getElementById("i_bairro"),v=val("f_bairro").trim();
+  if(!v){el.innerHTML="";return}
+  el.innerHTML=b?'<div class="info i-n">Zona '+b.zona+' · '+esc(b.dist)+' · cerca de '+esc(b.tempo)+'</div>':
+    '<div class="info i-warn">Esse bairro não está na tabela de rotas. Escolha um da lista (ou avise o caixa).</div>';
+  infoJanela();
+}
+function atualizaJanelas(){
+  var e=ent(),d=val("f_data"),sel=document.getElementById("f_jan"),aviso=document.getElementById("i_jan"),atual=sel.value;
+  if(!d){sel.innerHTML="";return}
+  var ok=e.dias.indexOf(pyDia(d))>=0;
+  if(!ok){
+    sel.innerHTML="";
+    var nomes=e.dias.map(function(i){return DIAS[(i+1)%7]}).join(", ");
+    aviso.innerHTML='<div class="info i-bad">Não há entregas em '+DIAS[diaSemana(d)]+'. Escolha outro dia ('+esc(nomes)+').</div>';return;
+  }
+  var agora=new Date(),hoje=iso(agora),min=agora.getHours()*60+agora.getMinutes();
+  sel.innerHTML=e.janelas.map(function(j){
+    var ini=janIni(j).split(":"),passou=d===hoje&&(+ini[0]*60+(+ini[1]))<=min;
+    return '<option value="'+esc(j)+'"'+(passou?" disabled":"")+'>'+esc(j.replace("-"," às "))+(passou?" (já passou)":"")+'</option>'}).join("");
+  if(atual)for(var i=0;i<sel.options.length;i++)if(sel.options[i].value===atual&&!sel.options[i].disabled)sel.selectedIndex=i;
+  if(sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].disabled){for(var k=0;k<sel.options.length;k++)if(!sel.options[k].disabled){sel.selectedIndex=k;break}}
+  infoJanela();
+}
+function infoJanela(){
+  var d=val("f_data"),j=val("f_jan"),el=document.getElementById("i_jan");
+  if(!el||!d||!j){return}
+  if(ent().dias.indexOf(pyDia(d))<0)return;
+  var mesmos=S.lista.filter(function(x){return x.data===d&&x.janela===j&&!S.env["x|"+x.id]});
+  if(!mesmos.length){el.innerHTML='<div class="info i-n">Nenhuma entrega agendada nesse horário ainda.</div>';return}
+  var b=S.bairros[norm(val("f_bairro"))],igual=b&&mesmos.filter(function(x){return norm(x.bairro)===norm(b.bairro)}).length,
+      zona=b&&mesmos.filter(function(x){return String(x.zona)===String(b.zona)}).length;
+  var txt=mesmos.map(function(x){return esc(x.bairro||"?")+(x.zona?" (Z"+x.zona+")":"")}).join(", ");
+  el.innerHTML='<div class="info '+(igual?"i-ok":zona?"i-ok":"i-n")+'">'+(igual?"Já tem entrega nesse bairro nesse horário: sai junto. ":zona?"Já tem entrega nessa zona nesse horário: boa combinação. ":"")+
+    'Neste horário: '+txt+'</div>';
+}
+function msg(t,erro){var m=document.getElementById("f_msg");if(m)m.innerHTML=t?'<div class="info '+(erro?"i-bad":"i-ok")+'">'+esc(t)+'</div>':""}
+function enviar(){
+  var s=S.snap;if(!s){msg("Sem conexão com o caixa. Tente de novo.",true);return}
+  var f={vendedor:val("f_vend").trim(),tipo:val("f_tipo"),cliente:val("f_cliente").trim(),telefone:val("f_tel"),bairro:val("f_bairro").trim(),
+         cep:val("f_cep"),data:val("f_data"),janela:val("f_jan"),detalhe:val("f_det").trim()};
+  var tel=f.telefone.replace(/\D/g,"");
+  if(!f.vendedor)return msg("Escreva o nome do vendedor.",true);
+  if(!f.cliente)return msg("Escreva o nome do cliente.",true);
+  if(tel.length<10||tel.length>11)return msg("Telefone inválido. Use DDD + número.",true);
+  if(!f.bairro)return msg("Escolha o bairro.",true);
+  if(!S.bairros[norm(f.bairro)])return msg("Esse bairro não está na tabela de rotas. Escolha um da lista.",true);
+  if(f.cep&&f.cep.replace(/\D/g,"").length!==8)return msg("CEP incompleto. Deixe vazio ou use 8 números.",true);
+  if(!f.data||!f.janela)return msg("Escolha o dia e o horário.",true);
+  if(ent().dias.indexOf(pyDia(f.data))<0)return msg("Nesse dia não há entregas.",true);
+  guardar("ev_vend",f.vendedor);
+  var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x");
+  var b=document.getElementById("b_enviar");b.disabled=true;
+  put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
+    b.disabled=false;
+    ["f_cliente","f_tel","f_bairro","f_cep","f_det"].forEach(function(id){document.getElementById(id).value=""});
+    document.getElementById("i_bairro").innerHTML="";
+    msg("Agendado! Aparece na lista em alguns segundos.",false);
+    S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:f.bairro,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
+    infoJanela();desenhaLista();
+  }).catch(function(){b.disabled=false;msg("Não consegui enviar. Verifique o Wi-Fi e tente de novo.",true)});
+}
+window.cancelar=function(id){
+  var s=S.snap;if(!s||!confirm("Cancelar este agendamento?"))return;
+  var ts=Date.now();S.env["x|"+id]=1;desenhaLista();
+  put("pedidos/"+s.data+"/ag"+ts+"x"+Math.random().toString(36).slice(2,6),{k:"ag",op:"apagar",id:id,ts:ts}).catch(function(){delete S.env["x|"+id];desenhaLista()});
+};
+
+// ---------- lista (atualiza sozinha)
+function desenhaLista(){
+  var el=document.getElementById("lista");if(!el)return;
+  var its=S.lista.filter(function(x){return !S.env["x|"+x.id]}),h="<h2>Agendados</h2>";
+  if(!its.length)h+='<p class="empty">Nada agendado.</p>';
+  var dia="",jan="";
+  its.forEach(function(x){
+    if(x.data!==dia){dia=x.data;jan="";h+='<div class="dia">'+brData(x.data)+" · "+DIAS[diaSemana(x.data)]+"</div>"}
+    if(x.janela!==jan){jan=x.janela;h+='<div class="jan">'+esc((x.janela||"").replace("-"," às "))+"</div>"}
+    h+='<div class="card" style="margin:4px 0"><div class="sub">'+esc(x.tipo)+(x.feito?" · feito":"")+'</div><b>'+esc(x.cliente||x.titulo||"")+'</b>'+
+       '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Zona '+esc(x.zona)+'</span>':"")+'</div>'+
+       '<div class="sub">'+esc(x.telefone||"")+(x.vendedor?" · "+esc(x.vendedor):"")+'</div>'+
+       (x.feito||x._novo?"":'<div style="margin-top:6px"><button class="no" onclick="cancelar(\''+esc(x.id)+'\')">Cancelar</button></div>')+'</div>';
+  });
+  el.innerHTML=h;
+}
+function atualizaLista(){
+  var a=(S.snap&&S.snap.agenda)||[];
+  S.lista=a.filter(function(x){return x.janela&&x.data>=iso(new Date())}).sort(function(p,q){
+    return (p.data+p.janela+(p.zona||9)+(p.bairro||""))<(q.data+q.janela+(q.zona||9)+(q.bairro||""))?-1:1});
+  desenhaLista();infoJanela();
+}
+
+function carregar(){
+  return get("meta").then(function(m){return get("dias/"+((m&&m.ultimo)||iso(new Date())))}).then(function(snap){
+    S.snap=snap;S.erro="";
+    if(!snap){if(!S.pronto)$.innerHTML='<p class="empty">O caixa ainda não enviou dados. O programa do caixa precisa estar aberto.</p>';return}
+    if(!S.pronto)montarForm();
+    atualizaLista();
+  }).catch(function(){
+    S.erro="Sem conexão com o caixa. Confira se o celular está no Wi-Fi da loja.";
+    if(!S.pronto)$.innerHTML='<p class="empty">'+esc(S.erro)+'</p>';
+  });
+}
+function ciclo(){carregar().then(function(){setTimeout(ciclo,6000)})}
+
+if(!S.u||!S.t){$.innerHTML='<p class="empty">Este aparelho ainda não está conectado ao caixa. Peça o PIN ao gerente e abra o app.</p>'}
+else fetch("bairros.json",{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){
+  (j.bairros||[]).forEach(function(b){S.bairros[norm(b.bairro)]=b});ciclo()}).catch(function(){ciclo()});
+})();
+</script>
+</body>
+</html>

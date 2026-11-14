@@ -116,6 +116,9 @@ DEFAULT_CONFIG = {
     "pin_padrao_v1": False,
     "maquina_id": "",
     "maquina_nome": "",
+    "janelas_entrega": ["09:00-11:00", "12:00-13:00", "15:00-16:00", "18:00-19:00"],
+    "dias_entrega": [0, 1, 2, 3, 4],
+    "entrega_antes": 15,
     "local_ativo": True,
     "local_pin": "",
     "local_codigo": "",
@@ -271,6 +274,23 @@ def save_json(path, data):
         os.replace(tmp, path)
     except Exception:
         log("falha ao salvar " + path + "\n" + traceback.format_exc())
+
+
+_BAIRROS = None
+
+
+def bairros():
+    """Tabela de bairros/zonas (lider/bairros.json), por nome em minúsculas."""
+    global _BAIRROS
+    if _BAIRROS is None:
+        _BAIRROS = {}
+        try:
+            pasta = rede_local.pasta_pagina() if rede_local else os.path.join(os.path.dirname(os.path.abspath(__file__)), "lider")
+            for b in load_json(os.path.join(pasta, "bairros.json"), {}).get("bairros", []):
+                _BAIRROS[b["bairro"].strip().lower()] = b
+        except Exception:
+            pass
+    return _BAIRROS
 
 
 def load_config():
@@ -852,14 +872,15 @@ class App:
                 "tarefas": tarefas, "faltando": faltando, "total": total, "urgentes": urg,
                 "rejeitadas": st.get("rejeitadas", []), "relatorio": bool(st.get("relatorio_gerado")),
                 "funcionarios": [{"id": e["id"], "nome": e["nome"]} for e in self.funcionarios()],
-                "lista": self.lista_snapshot(), "agenda": self.agenda_snapshot()}
+                "lista": self.lista_snapshot(), "agenda": self.agenda_snapshot(), "entregas": self.entregas_cfg()}
 
     def agenda_snapshot(self):
         if agenda is None:
             return []
         corte = (dt.date.today() - dt.timedelta(days=1)).isoformat()
-        itens = [it for it in agenda.vivos(self.agenda) if it["data"] >= corte]
-        return [{k: it.get(k) for k in ("id", "data", "hora", "tipo", "titulo", "detalhe", "antes", "feito")} for it in itens[:80]]
+        itens = sorted([it for it in agenda.vivos(self.agenda) if it["data"] >= corte], key=agenda.chave_roteiro)
+        campos = ("id", "data", "hora", "tipo", "titulo", "detalhe", "antes", "feito") + agenda.EXTRAS
+        return [{k: it.get(k) for k in campos if it.get(k) not in (None, "")} for it in itens[:300]]
 
     def lista_snapshot(self):
         bucket = {"am": "am", "cx": "cx", "lem": "lem", "conf": "last"}
@@ -2140,7 +2161,14 @@ class App:
         if agenda is None:
             return False
         try:
-            if p.get("op") == "feito":
+            if p.get("op") == "apagar":
+                it = next((x for x in self.agenda if x["id"] == str(p.get("id"))), None)
+                if not it or it.get("apagado"):
+                    return False
+                self.ag_fechar(it["id"])
+                it = dict(it, apagado=True, mod=int(p.get("ts", 0)) or int(time.time() * 1000))
+                self.agenda = agenda.mesclar(self.agenda, [it])
+            elif p.get("op") == "feito":
                 it = next((x for x in self.agenda if x["id"] == str(p.get("id"))), None)
                 if not it or it.get("feito"):
                     return False
@@ -2151,8 +2179,11 @@ class App:
                 iid = "a" + re.sub(r"[^A-Za-z0-9]", "", str(p.get("pid", "")))[-9:]
                 if any(x["id"] == iid for x in self.agenda):
                     return False
-                it = agenda.criar(agenda.parse_data(i.get("data", "")), agenda.parse_hora(i.get("hora", "")), i.get("tipo", "Aviso"),
-                                  i.get("titulo", ""), i.get("detalhe", ""), int(i.get("antes", 0) or 0), id_=iid)
+                if i.get("tipo") in agenda.TIPOS_ENTREGA:
+                    it = self.item_entrega(i, iid)
+                else:
+                    it = agenda.criar(agenda.parse_data(i.get("data", "")), agenda.parse_hora(i.get("hora", "")), i.get("tipo", "Aviso"),
+                                      i.get("titulo", ""), i.get("detalhe", ""), int(i.get("antes", 0) or 0), id_=iid)
                 it["mod"] = int(p.get("ts", 0)) or it["mod"]
                 self.agenda = agenda.mesclar(self.agenda, [it])
         except Exception as e:
@@ -2164,6 +2195,45 @@ class App:
         self.sync_soon()
         self.ag_atualizar_janela()
         return True
+
+    def entregas_cfg(self):
+        return {"janelas": list(self.cfg.get("janelas_entrega") or []), "dias": list(self.cfg.get("dias_entrega") or []),
+                "vendedores": [f["nome"] for f in self.cfg.get("funcionarios", []) if f.get("nome")]}
+
+    def item_entrega(self, i, iid=None):
+        """Entrega / condicional / troca pedida pelo vendedor. Valida tudo de novo aqui (a página já validou, mas o celular não é de confiança)."""
+        def pega(k):
+            return str(i.get(k) or "").strip()
+        for k, rot in (("cliente", "nome do cliente"), ("bairro", "bairro"), ("telefone", "telefone"), ("vendedor", "vendedor"), ("janela", "horário")):
+            if not pega(k):
+                raise ValueError("falta " + rot)
+        data = agenda.parse_data(pega("data"))
+        janela = agenda.parse_janela(pega("janela"))
+        if janela not in (self.cfg.get("janelas_entrega") or []):
+            raise ValueError("horário fora das janelas de entrega")
+        if dt.datetime.strptime(data, "%Y-%m-%d").weekday() not in (self.cfg.get("dias_entrega") or []):
+            raise ValueError("dia sem entregas")
+        tel = re.sub(r"\D", "", pega("telefone"))
+        if len(tel) < 10 or len(tel) > 11:
+            raise ValueError("telefone inválido")
+        tel_fmt = "(%s) %s-%s" % (tel[:2], tel[2:-4], tel[-4:])
+        cep = re.sub(r"\D", "", pega("cep"))
+        if cep and len(cep) != 8:
+            raise ValueError("CEP inválido")
+        b = bairros().get(pega("bairro").lower())
+        tipo = i["tipo"]
+        det = ["Cliente: %s - Tel: %s" % (pega("cliente"), tel_fmt),
+               "Bairro: %s%s" % (pega("bairro"), (" (Zona %d, ~%s)" % (b["zona"], b["tempo"])) if b else " (fora da tabela de rotas)")]
+        if cep:
+            det.append("CEP: %s-%s" % (cep[:5], cep[5:]))
+        if pega("detalhe"):
+            det.append(pega("detalhe"))
+        det.append("Vendedor: %s - Horário: %s" % (pega("vendedor"), janela.replace("-", " às ")))
+        it = agenda.criar(data, agenda.janela_inicio(janela), tipo, "%s - %s (%s)" % (tipo, pega("cliente"), pega("bairro")), "\n".join(det)[:600],
+                          int(self.cfg.get("entrega_antes", 15) or 0), id_=iid,
+                          extra={"cliente": pega("cliente"), "bairro": pega("bairro"), "cep": cep, "telefone": tel_fmt, "vendedor": pega("vendedor"),
+                                 "janela": janela, "zona": b["zona"] if b else "", "tempo": b["tempo"] if b else ""})
+        return it
 
     def ag_fechar(self, iid):
         e = self.ag_est.get(iid)
@@ -2295,7 +2365,7 @@ class App:
             corte = (dt.date.today() - dt.timedelta(days=3)).isoformat()
             hoje = today()
             agora = time.time()
-            for it in agenda.vivos(self.agenda):
+            for it in sorted(agenda.vivos(self.agenda), key=agenda.chave_roteiro):
                 if it["data"] < corte:
                     continue
                 if it.get("feito"):
@@ -2307,7 +2377,7 @@ class App:
                 else:
                     st = ""
                 ordem.append(it["id"])
-                tv.insert("", "end", iid=it["id"], values=("%s %s" % (agenda.data_br(it["data"])[:5], it["hora"]), it["tipo"], it["titulo"], st))
+                tv.insert("", "end", iid=it["id"], values=("%s %s" % (agenda.data_br(it["data"])[:5], (it.get("janela") or it["hora"]).replace("-", "–")), it["tipo"], it["titulo"], st))
         w.recarregar = recarregar
 
         def adicionar():
@@ -2367,6 +2437,13 @@ class App:
         b2.pack(fill="x", padx=16, pady=(0, 14))
         tk.Button(b2, text="Marcar como feito", command=marcar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         tk.Button(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        def copiar_roteiro():
+            it = selecionado()
+            iso = it["data"] if it else today()
+            self.root.clipboard_clear()
+            self.root.clipboard_append(agenda.roteiro_texto(self.agenda, iso))
+            msg.configure(text="Roteiro de %s copiado. Cole no WhatsApp ou no bloco de notas." % agenda.data_br(iso), fg=GREEN)
+        tk.Button(b2, text="Copiar roteiro do dia", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         tk.Button(b2, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="right")
         recarregar()

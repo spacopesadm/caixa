@@ -9,7 +9,9 @@ import re
 import time
 import uuid
 
-TIPOS = ["Entrega", "Condicional", "Buscar condicional", "Atendimento", "Lembrete", "Aviso"]
+TIPOS_ENTREGA = ["Entrega", "Condicional (Levar)", "Condicional (Buscar)", "Troca"]
+TIPOS = TIPOS_ENTREGA + ["Condicional", "Buscar condicional", "Atendimento", "Lembrete", "Aviso"]
+EXTRAS = ("cliente", "bairro", "cep", "telefone", "vendedor", "janela", "zona", "tempo")
 ANTES = [0, 5, 10, 15, 30, 60]
 
 
@@ -58,13 +60,17 @@ def data_br(iso):
         return iso
 
 
-def criar(data, hora, tipo, titulo, detalhe="", antes=0, id_=None):
+def criar(data, hora, tipo, titulo, detalhe="", antes=0, id_=None, extra=None):
     titulo = (titulo or "").strip()
     if not titulo:
         raise ValueError("Escreva o que é (por exemplo: Condicional para Fulana).")
-    return {"id": id_ or novo_id(), "data": data, "hora": hora, "tipo": tipo if tipo in TIPOS else "Aviso", "titulo": titulo[:120],
+    it = {"id": id_ or novo_id(), "data": data, "hora": hora, "tipo": tipo if tipo in TIPOS else "Aviso", "titulo": titulo[:120],
             "detalhe": (detalhe or "").strip()[:600], "antes": int(antes) if int(antes) in ANTES else 0, "feito": 0, "apagado": False,
             "mod": int(time.time() * 1000)}
+    for k in EXTRAS:
+        if extra and extra.get(k) not in (None, ""):
+            it[k] = str(extra[k])[:120]
+    return it
 
 
 def prazo(item):
@@ -99,3 +105,46 @@ def vivos(lista):
 
 def da_data(lista, iso):
     return [it for it in vivos(lista) if it["data"] == iso]
+
+
+def janela_inicio(j):
+    return parse_hora((j or "").split("-")[0])
+
+
+def parse_janela(j):
+    """'09:00-11:00' (ou '9h-11h') -> '09:00-11:00'."""
+    partes = (j or "").replace(" ", "").replace("às", "-").replace("as", "-").split("-")
+    if len(partes) != 2:
+        raise ValueError("Horário inválido. Use por exemplo 09:00-11:00.")
+    a, b = parse_hora(partes[0]), parse_hora(partes[1])
+    if a >= b:
+        raise ValueError("Horário inválido: o fim tem de ser depois do início (%s)." % j)
+    return "%s-%s" % (a, b)
+
+
+def chave_roteiro(it):
+    """Ordem do roteiro: dia, horário, zona (perto primeiro), bairro."""
+    try:
+        z = int(it.get("zona") or 9)
+    except ValueError:
+        z = 9
+    return (it["data"], it.get("janela") or it["hora"], z, it.get("bairro") or "", it.get("cliente") or it.get("titulo", ""))
+
+
+def roteiro_texto(lista, iso):
+    """Roteiro do dia: por janela de horário, entregas do mesmo bairro/zona juntas."""
+    itens = sorted([x for x in da_data(lista, iso) if x.get("janela")], key=chave_roteiro)
+    if not itens:
+        return "Nenhuma entrega/condicional/troca agendada para %s." % data_br(iso)
+    out = ["ROTEIRO %s" % data_br(iso)]
+    atual = None
+    for it in itens:
+        if it["janela"] != atual:
+            atual = it["janela"]
+            out += ["", "== %s ==" % atual.replace("-", " às ")]
+        out.append("- %s | %s | %s%s | %s | %s%s" % (it["tipo"], it.get("cliente", ""), it.get("bairro", ""),
+                   (" (Zona %s)" % it["zona"]) if it.get("zona") else "", it.get("telefone", ""), it.get("vendedor", ""),
+                   " [FEITO]" if it.get("feito") else ""))
+        if it.get("detalhe"):
+            out.append("    " + it["detalhe"].replace("\n", " / "))
+    return "\n".join(out)

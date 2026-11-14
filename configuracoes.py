@@ -467,6 +467,22 @@ def abrir(app):
                        "As configurações (horários, funcionários, avisos, e-mail) são as mesmas em todos os computadores da loja: "
                        "mude em um e os outros atualizam sozinhos.", foreground=GREY, wraplength=720, justify="left").grid(row=11, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
+    # ---------------- Entregas (horários que os vendedores podem agendar)
+    t11 = tab("Entregas")
+    ttk.Label(t11, text="Horários de entrega que os vendedores podem escolher", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+    ttk.Label(t11, text="Um horário por linha, no formato 09:00-11:00. Nesses horários as entregas, condicionais e trocas saem juntas, "
+                        "agrupadas por bairro.", foreground=GREY, wraplength=640, justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(2, 6))
+    tx_jan = tk.Text(t11, height=7, width=22, font=(FONT, 11))
+    tx_jan.grid(row=2, column=0, sticky="nw")
+    tx_jan.insert("1.0", "\n".join(cfg.get("janelas_entrega") or []))
+    fd = ttk.Frame(t11)
+    fd.grid(row=2, column=1, sticky="nw", padx=24)
+    ttk.Label(fd, text="Dias com entrega:").pack(anchor="w")
+    for i in range(7):
+        V["ent_d%d" % i] = tk.BooleanVar(value=i in (cfg.get("dias_entrega") or []))
+        ttk.Checkbutton(fd, text=DIAS_NOMES[i], variable=V["ent_d%d" % i]).pack(anchor="w")
+    campo(t11, 3, "Avisar no caixa quantos minutos antes", "ent_antes", cfg.get("entrega_antes", 15), 6)
+
     # ---------------- Celular pelo Wi-Fi da loja
     t10 = tab("Celular (Wi-Fi)")
     ttk.Label(t10, text="Celular pelo Wi-Fi da loja (app Android)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
@@ -646,6 +662,18 @@ def abrir(app):
         if n["email_ativo"] and (not n["email_servidor"] or not n["email_para"] or not (n["email_usuario"] or n["email_de"])):
             raise ValueError("E-mail: para enviar sozinho, preencha o servidor, o e-mail de quem envia e o e-mail de quem recebe.")
 
+        jan = []
+        for lin in _linhas(tx_jan.get("1.0", "end")):
+            try:
+                import agenda as _ag
+                jj = _ag.parse_janela(lin)
+            except ValueError as ex:
+                raise ValueError("Entregas: %s" % ex)
+            if jj not in jan:
+                jan.append(jj)
+        n["janelas_entrega"] = sorted(jan)
+        n["dias_entrega"] = [i for i in range(7) if V["ent_d%d" % i].get()]
+        n["entrega_antes"] = _num("Avisar antes (entregas)", V["ent_antes"].get(), 0, 120)
         n["ntfy_ativo"] = bool(V["nt_on"].get())
         pin = V["pin"].get().strip()
         if pin and not (pin.isdigit() and 4 <= len(pin) <= 8):

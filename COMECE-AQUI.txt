@@ -42,3 +42,10 @@ AGENDA (versão 9)
 - "Avisar antes" mostra um aviso antecipado. Na hora, aparece um aviso grande que repete até você tocar em "Feito". Também toca no celular.
 - O que for adicionado em um computador ou no celular aparece em todos.
 - PIN do líder: agora vale na hora em que você salva. Se a página abrir sem PIN, feche e abra de novo (ou recarregue forçado).
+
+APP DOS VENDEDORES - ENTREGAS (versão 12)
+- Instale o EntregasVendedor.apk nos celulares dos vendedores (separado do app do caixa). Conecte no Wi-Fi da loja e digite o PIN de 6 números (Configurações > Celular (Wi-Fi)).
+- O vendedor escolhe: Entrega, Condicional (Levar), Condicional (Buscar) ou Troca. Obrigatórios: vendedor, nome do cliente, telefone, bairro, dia e horário. CEP é opcional.
+- Os horários (padrão 09:00-11:00, 12:00-13:00, 15:00-16:00, 18:00-19:00, segunda a sexta) mudam em Configurações > Entregas.
+- Ao agendar, o item aparece na Agenda do caixa, avisa antes do horário e a janela mostra tudo em ordem de horário, zona e bairro. "Copiar roteiro do dia" gera a lista para o entregador.
+- Os bairros e zonas vêm da sua planilha (arquivo lider/bairros.json).

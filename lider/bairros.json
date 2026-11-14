@@ -1,0 +1,873 @@
+{
+"saida": "Rua Arapoca, 26 (Jardim Ipê)",
+"bairros": [
+{
+"bairro": "Jardim Ipê",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "0,1 km a 1,5 km",
+"tempo": "2 a 5 min"
+},
+{
+"bairro": "São Raimundo",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "1,5 km a 3,0 km",
+"tempo": "5 a 8 min"
+},
+{
+"bairro": "Vera Cruz",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "1,5 km a 3,0 km",
+"tempo": "5 a 8 min"
+},
+{
+"bairro": "Jardim Atalaia",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "1,5 km a 3,0 km",
+"tempo": "5 a 8 min"
+},
+{
+"bairro": "Azteca",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Jardim Alvorada",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Paraíso",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Vila Ricardão",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Vila Isa",
+"regiao": "Região XV (Jardim Ipê / São Raimundo)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Cidade Jardim",
+"regiao": "Região XVIII (Cidade Jardim / Conquista)",
+"zona": 1,
+"dist": "1,5 km a 3,0 km",
+"tempo": "5 a 8 min"
+},
+{
+"bairro": "Conquista",
+"regiao": "Região XVIII (Cidade Jardim / Conquista)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Vila dos Montes",
+"regiao": "Região XVIII (Cidade Jardim / Conquista)",
+"zona": 1,
+"dist": "2,0 km a 3,5 km",
+"tempo": "6 a 10 min"
+},
+{
+"bairro": "Vila do Sol I e II",
+"regiao": "Região XVIII (Cidade Jardim / Conquista)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Vale do Sol I, II e III",
+"regiao": "Região XVIII (Cidade Jardim / Conquista)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Jardim Primavera",
+"regiao": "Região XII (Ibituruna / Primavera)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Vila Parque Ibituruna",
+"regiao": "Região XII (Ibituruna / Primavera)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Vila Parque São João",
+"regiao": "Região XII (Ibituruna / Primavera)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Recanto das Cachoeiras",
+"regiao": "Região XII (Ibituruna / Primavera)",
+"zona": 1,
+"dist": "3,0 km a 3,5 km",
+"tempo": "8 a 10 min"
+},
+{
+"bairro": "Elvamar",
+"regiao": "Região XIX (Serra / Encosta)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Village da Serra",
+"regiao": "Região XIX (Serra / Encosta)",
+"zona": 1,
+"dist": "2,5 km a 3,5 km",
+"tempo": "7 a 10 min"
+},
+{
+"bairro": "Parque das Aroeiras",
+"regiao": "Região XIX (Serra / Encosta)",
+"zona": 1,
+"dist": "3,0 km a 3,5 km",
+"tempo": "8 a 10 min"
+},
+{
+"bairro": "Encosta do Sol",
+"regiao": "Região XIX (Serra / Encosta)",
+"zona": 1,
+"dist": "3,0 km a 3,5 km",
+"tempo": "8 a 10 min"
+},
+{
+"bairro": "Marllon Calixto",
+"regiao": "Região XIX (Serra / Encosta)",
+"zona": 1,
+"dist": "3,0 km a 3,5 km",
+"tempo": "8 a 10 min"
+},
+{
+"bairro": "Santa Rita",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "3,5 km a 5,5 km",
+"tempo": "10 a 14 min"
+},
+{
+"bairro": "Nova Santa Rita",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "4,0 km a 6,0 km",
+"tempo": "11 a 15 min"
+},
+{
+"bairro": "JK I, II e III",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "4,0 km a 6,0 km",
+"tempo": "11 a 15 min"
+},
+{
+"bairro": "Nova JK",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "4,5 km a 6,5 km",
+"tempo": "12 a 15 min"
+},
+{
+"bairro": "Jardim Alice",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "4,5 km a 6,5 km",
+"tempo": "12 a 15 min"
+},
+{
+"bairro": "Castanheiras",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "4,5 km a 6,5 km",
+"tempo": "12 a 15 min"
+},
+{
+"bairro": "Betel",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "5,0 km a 6,5 km",
+"tempo": "12 a 16 min"
+},
+{
+"bairro": "Canaã",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "5,0 km a 6,5 km",
+"tempo": "12 a 16 min"
+},
+{
+"bairro": "Santa Rosa",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "5,0 km a 7,0 km",
+"tempo": "13 a 16 min"
+},
+{
+"bairro": "Vale Pastoril I e II",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "5,5 km a 7,0 km",
+"tempo": "13 a 16 min"
+},
+{
+"bairro": "Distrito Industrial",
+"regiao": "Região XVI (Santa Rita / JK)",
+"zona": 2,
+"dist": "5,5 km a 7,0 km",
+"tempo": "13 a 16 min"
+},
+{
+"bairro": "Vila Bretas",
+"regiao": "Região XIV (Vila Bretas / São Paulo)",
+"zona": 2,
+"dist": "5,0 km a 6,5 km",
+"tempo": "12 a 15 min"
+},
+{
+"bairro": "São Paulo",
+"regiao": "Região XIII (Vila Bretas / São Paulo)",
+"zona": 2,
+"dist": "5,5 km a 7,0 km",
+"tempo": "13 a 16 min"
+},
+{
+"bairro": "Lourdes",
+"regiao": "Região VIII (Lourdes)",
+"zona": 2,
+"dist": "5,5 km a 7,0 km",
+"tempo": "13 a 16 min"
+},
+{
+"bairro": "Santa Terezinha",
+"regiao": "Região VIII (Lourdes)",
+"zona": 2,
+"dist": "6,0 km a 7,0 km",
+"tempo": "14 a 16 min"
+},
+{
+"bairro": "Centro (Setores A, B e C)",
+"regiao": "Região I e VI (Centro)",
+"zona": 3,
+"dist": "7,0 km a 8,5 km",
+"tempo": "17 a 21 min"
+},
+{
+"bairro": "Esplanada",
+"regiao": "Região I e VI (Centro)",
+"zona": 3,
+"dist": "7,5 km a 9,0 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "São Tarcísio",
+"regiao": "Região I e VI (Centro)",
+"zona": 3,
+"dist": "7,5 km a 9,0 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "Ilha dos Araújos",
+"regiao": "Região VII (Ilha)",
+"zona": 3,
+"dist": "7,5 km a 9,5 km",
+"tempo": "18 a 23 min"
+},
+{
+"bairro": "Morada do Acampamento",
+"regiao": "Região IX (Acampamento)",
+"zona": 3,
+"dist": "7,5 km a 9,0 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "Acampamento",
+"regiao": "Região IX (Acampamento)",
+"zona": 3,
+"dist": "7,5 km a 9,0 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "São Geraldo",
+"regiao": "Região IX (Acampamento)",
+"zona": 3,
+"dist": "8,0 km a 9,5 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Vila Mariana",
+"regiao": "Região IX (Acampamento)",
+"zona": 3,
+"dist": "8,0 km a 9,5 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Carapina",
+"regiao": "Região V (Carapina)",
+"zona": 3,
+"dist": "8,0 km a 9,5 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Nossa Senhora das Graças",
+"regiao": "Região V (Carapina)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Santa Efigênia",
+"regiao": "Região V (Carapina)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Morro do Querosene",
+"regiao": "Região V (Carapina)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Vila Rica",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "7,5 km a 9,0 km",
+"tempo": "17 a 21 min"
+},
+{
+"bairro": "Jardim Pérola",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,0 km a 9,5 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "São José",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,0 km a 9,5 km",
+"tempo": "18 a 22 min"
+},
+{
+"bairro": "São Cristóvão",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "São Luiz",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Nossa Senhora de Fátima",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Sagrada Família",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Bela Vista",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "8,5 km a 10,0 km",
+"tempo": "19 a 23 min"
+},
+{
+"bairro": "Fraternidade",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Park Fraternidade",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Nova Vila Bretas",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Tiradentes",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Caravelas",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Vitória",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,0 km a 10,5 km",
+"tempo": "20 a 24 min"
+},
+{
+"bairro": "Castelo",
+"regiao": "Região XVII — Sul (Vila Rica / Jd. Pérola)",
+"zona": 3,
+"dist": "9,5 km a 10,5 km",
+"tempo": "21 a 24 min"
+},
+{
+"bairro": "Turmalina",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Kennedy",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Vila Ozanan",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Novo Horizonte",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Retiro dos Lagos",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "Vila União",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "Penha",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "12,0 km a 14,0 km",
+"tempo": "28 a 33 min"
+},
+{
+"bairro": "Palmeiras",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "12,0 km a 14,0 km",
+"tempo": "28 a 33 min"
+},
+{
+"bairro": "Redenção",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Planalto",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Vila Império",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "Res. Figueira",
+"regiao": "Região XVII — Norte (Turmalina / Kennedy)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "Altinópolis",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Mãe de Deus",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Santo Antônio",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "São Braz",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "Maravilha",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "12,0 km a 14,5 km",
+"tempo": "28 a 34 min"
+},
+{
+"bairro": "Vista Alegre",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "12,0 km a 14,5 km",
+"tempo": "28 a 34 min"
+},
+{
+"bairro": "Borges",
+"regiao": "Região X (Altinópolis / Mãe de Deus)",
+"zona": 4,
+"dist": "12,0 km a 14,5 km",
+"tempo": "28 a 34 min"
+},
+{
+"bairro": "Jardim do Trevo",
+"regiao": "Região XI (Jardim do Trevo)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Santa Paula",
+"regiao": "Região XI (Jardim do Trevo)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "Sertão do Rio Doce I e II",
+"regiao": "Região XI (Jardim do Trevo)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Capim",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Cardo",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Floresta",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "10,5 km a 12,5 km",
+"tempo": "25 a 30 min"
+},
+{
+"bairro": "Interlagos",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Sion",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Alto Esplanada",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Esplanadinha",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,0 km a 13,0 km",
+"tempo": "26 a 31 min"
+},
+{
+"bairro": "Belvedere",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "São Pedro",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "11,5 km a 13,5 km",
+"tempo": "27 a 32 min"
+},
+{
+"bairro": "Universitário",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "12,0 km a 14,0 km",
+"tempo": "28 a 33 min"
+},
+{
+"bairro": "Univale",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "12,0 km a 14,0 km",
+"tempo": "28 a 33 min"
+},
+{
+"bairro": "Santos Dumont I e II",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Conjunto SIR",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Chácaras Braúnas",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "12,5 km a 14,5 km",
+"tempo": "29 a 34 min"
+},
+{
+"bairro": "Jother Peres",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "Sítio das Flores",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "Recanto das Garças",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "dos Sonhos",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,0 km a 15,0 km",
+"tempo": "30 a 35 min"
+},
+{
+"bairro": "Jardins",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,5 km a 15,0 km",
+"tempo": "31 a 35 min"
+},
+{
+"bairro": "Porto das Canoas",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,5 km a 15,0 km",
+"tempo": "31 a 35 min"
+},
+{
+"bairro": "Olímpio de Freitas",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,5 km a 15,0 km",
+"tempo": "31 a 35 min"
+},
+{
+"bairro": "Pq. Olímpico",
+"regiao": "Região II (Universitário / Grã-Duquesa Sul)",
+"zona": 4,
+"dist": "13,5 km a 15,0 km",
+"tempo": "31 a 35 min"
+},
+{
+"bairro": "Grã-Duquesa",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "15,0 km a 17,0 km",
+"tempo": "35 a 40 min"
+},
+{
+"bairro": "Cidade Nova",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "15,5 km a 17,5 km",
+"tempo": "36 a 42 min"
+},
+{
+"bairro": "Lagoa Santa",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "15,5 km a 17,5 km",
+"tempo": "36 a 42 min"
+},
+{
+"bairro": "Santo Agostinho",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "16,0 km a 18,0 km",
+"tempo": "37 a 43 min"
+},
+{
+"bairro": "Esperança",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "16,0 km a 18,0 km",
+"tempo": "37 a 43 min"
+},
+{
+"bairro": "Morada do Vale I, II e III",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "16,5 km a 19,0 km",
+"tempo": "38 a 45 min"
+},
+{
+"bairro": "Vale Verde",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "17,0 km a 19,5 km",
+"tempo": "40 a 46 min"
+},
+{
+"bairro": "Santa Rosa de Lima",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "17,0 km a 19,5 km",
+"tempo": "40 a 46 min"
+},
+{
+"bairro": "Belo Monte",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "17,5 km a 20,0 km",
+"tempo": "40 a 48 min"
+},
+{
+"bairro": "Maria Eugênia",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "17,5 km a 20,0 km",
+"tempo": "40 a 48 min"
+},
+{
+"bairro": "Ouro Verde",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "18,0 km a 20,5 km",
+"tempo": "42 a 50 min"
+},
+{
+"bairro": "Vila Verde",
+"regiao": "Região IV (Grã-Duquesa / Morada do Vale)",
+"zona": 5,
+"dist": "18,0 km a 20,5 km",
+"tempo": "42 a 50 min"
+},
+{
+"bairro": "Santa Helena",
+"regiao": "Região III (Santa Helena)",
+"zona": 5,
+"dist": "15,5 km a 18,0 km",
+"tempo": "36 a 43 min"
+},
+{
+"bairro": "Alto Santa Helena",
+"regiao": "Região III (Santa Helena)",
+"zona": 5,
+"dist": "15,5 km a 18,0 km",
+"tempo": "36 a 43 min"
+},
+{
+"bairro": "Monte Carmelo",
+"regiao": "Região III (Santa Helena)",
+"zona": 5,
+"dist": "16,0 km a 18,5 km",
+"tempo": "37 a 44 min"
+}
+]
+}

@@ -15,6 +15,25 @@ android {
         versionName = System.getenv("VERSAO") ?: "1"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
+    flavorDimensions += "app"
+    productFlavors {
+        create("caixa") {
+            dimension = "app"
+            buildConfigField("boolean", "VENDEDOR", "false")
+            resValue("string", "app_name", "Painel do Caixa")
+        }
+        create("vendedor") {
+            dimension = "app"
+            applicationId = "br.com.spacopes.entregas"
+            buildConfigField("boolean", "VENDEDOR", "true")
+            resValue("string", "app_name", "Entregas Spaço Pés")
+        }
+    }
+
     signingConfigs {
         create("loja") {
             storeFile = file("../loja.keystore")

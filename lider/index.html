@@ -127,8 +127,8 @@ window.entrarPin=function(){
     render();
   });
 };
-var AGTIPOS=["Entrega","Condicional","Buscar condicional","Atendimento","Lembrete","Aviso"];
-S.ag={tipo:"Entrega",data:"",hora:"",antes:"15",titulo:"",detalhe:"",msg:""};
+var AGTIPOS=["Lembrete","Atendimento","Aviso","Condicional","Buscar condicional"];
+S.ag={tipo:"Lembrete",data:"",hora:"",antes:"15",titulo:"",detalhe:"",msg:""};
 function lerAg(){var o={};["tipo","data","hora","antes","titulo","detalhe"].forEach(function(k){var e=document.getElementById("ag_"+k);if(e)o[k]=e.value});return o}
 window.addAg=function(){
   var s=S.snap;if(!s)return;var f=lerAg();
