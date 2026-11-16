@@ -119,6 +119,8 @@ DEFAULT_CONFIG = {
     "janelas_entrega": ["09:00-11:00", "12:00-13:00", "15:00-16:00", "18:00-19:00"],
     "dias_entrega": [0, 1, 2, 3, 4],
     "entrega_antes": 15,
+    "impressora": "",
+    "impressora_colunas": 48,
     "local_ativo": True,
     "local_pin": "",
     "local_codigo": "",
@@ -287,7 +289,8 @@ def bairros():
         try:
             pasta = rede_local.pasta_pagina() if rede_local else os.path.join(os.path.dirname(os.path.abspath(__file__)), "lider")
             for b in load_json(os.path.join(pasta, "bairros.json"), {}).get("bairros", []):
-                _BAIRROS[b["bairro"].strip().lower()] = b
+                for nome in [b["bairro"]] + list(b.get("alias") or []):
+                    _BAIRROS[agenda.chave_bairro(nome)] = b
         except Exception:
             pass
     return _BAIRROS
@@ -816,7 +819,7 @@ class App:
         tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
 
     # ---- configurações iguais em todos os computadores
-    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo"}
+    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas"}
 
     def empurrar_config(self):
         if self.nuvem is None or not self.nuvem.ativo():
@@ -2204,7 +2207,7 @@ class App:
         """Entrega / condicional / troca pedida pelo vendedor. Valida tudo de novo aqui (a página já validou, mas o celular não é de confiança)."""
         def pega(k):
             return str(i.get(k) or "").strip()
-        for k, rot in (("cliente", "nome do cliente"), ("bairro", "bairro"), ("telefone", "telefone"), ("vendedor", "vendedor"), ("janela", "horário")):
+        for k, rot in (("cliente", "nome do cliente"), ("endereco", "endereço"), ("bairro", "bairro"), ("telefone", "telefone"), ("vendedor", "vendedor"), ("janela", "horário")):
             if not pega(k):
                 raise ValueError("falta " + rot)
         data = agenda.parse_data(pega("data"))
@@ -2220,20 +2223,43 @@ class App:
         cep = re.sub(r"\D", "", pega("cep"))
         if cep and len(cep) != 8:
             raise ValueError("CEP inválido")
-        b = bairros().get(pega("bairro").lower())
+        b = bairros().get(agenda.chave_bairro(pega("bairro")))
         tipo = i["tipo"]
         det = ["Cliente: %s - Tel: %s" % (pega("cliente"), tel_fmt),
-               "Bairro: %s%s" % (pega("bairro"), (" (Zona %d, ~%s)" % (b["zona"], b["tempo"])) if b else " (fora da tabela de rotas)")]
+               "Endereço: %s" % pega("endereco"),
+               "Bairro: %s%s" % (b["bairro"] if b else pega("bairro"), (" (Região %d, %s, ~%s)" % (b["zona"], b["dist"], b["tempo"])) if b else " (fora da tabela de rotas)")]
         if cep:
             det.append("CEP: %s-%s" % (cep[:5], cep[5:]))
+        if pega("referencia"):
+            det.append("Referência: %s" % pega("referencia"))
         if pega("detalhe"):
-            det.append(pega("detalhe"))
+            det.append("Obs.: %s" % pega("detalhe"))
         det.append("Vendedor: %s - Horário: %s" % (pega("vendedor"), janela.replace("-", " às ")))
-        it = agenda.criar(data, agenda.janela_inicio(janela), tipo, "%s - %s (%s)" % (tipo, pega("cliente"), pega("bairro")), "\n".join(det)[:600],
+        it = agenda.criar(data, agenda.janela_inicio(janela), tipo, "%s - %s (%s)" % (tipo, pega("cliente"), b["bairro"] if b else pega("bairro")), "\n".join(det)[:800],
                           int(self.cfg.get("entrega_antes", 15) or 0), id_=iid,
-                          extra={"cliente": pega("cliente"), "bairro": pega("bairro"), "cep": cep, "telefone": tel_fmt, "vendedor": pega("vendedor"),
+                          extra={"cliente": pega("cliente"), "bairro": b["bairro"] if b else pega("bairro"), "endereco": pega("endereco"), "referencia": pega("referencia"),
+                                 "obs": pega("detalhe"), "cep": cep, "telefone": tel_fmt, "vendedor": pega("vendedor"),
                                  "janela": janela, "zona": b["zona"] if b else "", "tempo": b["tempo"] if b else ""})
         return it
+
+    def ag_imprimir(self, it):
+        """Imprime o endereço da entrega na impressora térmica (Epson TM-T20x)."""
+        try:
+            import impressao
+            alvo = impressao.enviar(self.cfg.get("impressora", ""), impressao.montar_endereco(it, self.cfg.get("impressora_colunas", 48)), "Entrega")
+            self.show("Impressão", "Endereço enviado para %s." % alvo, "joy", 3500, True)
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Não consegui imprimir", str(e))
+
+    def ag_imprimir_roteiro(self, iso):
+        try:
+            import impressao
+            alvo = impressao.enviar(self.cfg.get("impressora", ""), impressao.montar_roteiro(agenda.roteiro_texto(self.agenda, iso), self.cfg.get("impressora_colunas", 48)), "Roteiro")
+            self.show("Impressão", "Roteiro enviado para %s." % alvo, "joy", 3500, True)
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Não consegui imprimir", str(e))
 
     def ag_fechar(self, iid):
         e = self.ag_est.get(iid)
@@ -2270,8 +2296,11 @@ class App:
             self.alarm(2)
         else:
             self.alarm(1)
+        botoes = [("Feito", lambda: self.ag_feito(iid)), ("Adiar %d min" % self.cfg.get("adiar_minutos", 5), lambda: self.ag_adiar(iid))]
+        if it.get("endereco"):
+            botoes.insert(1, ("Imprimir endereço", lambda: (self.ag_imprimir(it), self.ag_adiar(iid))))
         e["pop"] = self.card("tc", 760, cor, "#FFFFFF", "%s · %s%s" % (it["tipo"], it["hora"], " (atrasado %d min)" % int(atraso) if atraso >= 2 else ""), corpo,
-                             [("Feito", lambda: self.ag_feito(iid)), ("Adiar %d min" % self.cfg.get("adiar_minutos", 5), lambda: self.ag_adiar(iid))],
+                             botoes,
                              text_size=18)
         self.root.after(0, lambda: self.edge_flash(cor, 4000))
         if e["n"] == 1:
@@ -2443,6 +2472,20 @@ class App:
             self.root.clipboard_clear()
             self.root.clipboard_append(agenda.roteiro_texto(self.agenda, iso))
             msg.configure(text="Roteiro de %s copiado. Cole no WhatsApp ou no bloco de notas." % agenda.data_br(iso), fg=GREEN)
+        def imprimir_sel():
+            it = selecionado()
+            if not it:
+                msg.configure(text="Escolha um item da lista para imprimir.", fg=RED)
+            elif not it.get("endereco"):
+                msg.configure(text="Esse item não tem endereço cadastrado.", fg=RED)
+            else:
+                self.ag_imprimir(it)
+
+        def imprimir_dia():
+            it = selecionado()
+            self.ag_imprimir_roteiro(it["data"] if it else today())
+        tk.Button(b2, text="Imprimir endereço", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
+        tk.Button(b2, text="Imprimir roteiro do dia", command=imprimir_dia, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         tk.Button(b2, text="Copiar roteiro do dia", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         tk.Button(b2, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="right")

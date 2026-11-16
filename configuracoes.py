@@ -482,6 +482,27 @@ def abrir(app):
         V["ent_d%d" % i] = tk.BooleanVar(value=i in (cfg.get("dias_entrega") or []))
         ttk.Checkbutton(fd, text=DIAS_NOMES[i], variable=V["ent_d%d" % i]).pack(anchor="w")
     campo(t11, 3, "Avisar no caixa quantos minutos antes", "ent_antes", cfg.get("entrega_antes", 15), 6)
+    ttk.Label(t11, text="Impressora térmica (Epson TM-T20x)", font=(FONT, 11, "bold")).grid(row=4, column=0, columnspan=3, sticky="w", pady=(16, 0))
+    try:
+        import impressao as _imp
+        _lista = _imp.listar_impressoras()
+        _auto = _imp.escolher("")
+    except Exception:
+        _lista, _auto = [], ""
+    V["imp"] = tk.StringVar(value=cfg.get("impressora", ""))
+    ttk.Label(t11, text="Impressora (vazio = automática: %s)" % (_auto or "nenhuma encontrada"), wraplength=300, justify="left").grid(row=5, column=0, sticky="w", pady=4)
+    ttk.Combobox(t11, textvariable=V["imp"], values=[""] + _lista, width=32).grid(row=5, column=1, columnspan=2, sticky="w", padx=10)
+    campo(t11, 6, "Colunas do papel (80 mm = 48; se cortar o texto, use 42)", "imp_col", cfg.get("impressora_colunas", 48), 6)
+
+    def _testar_imp():
+        try:
+            import impressao
+            colunas = _num("Colunas", V["imp_col"].get(), 24, 64)
+            alvo = impressao.enviar(V["imp"].get().strip(), impressao.montar_teste(colunas), "Teste")
+            messagebox.showinfo("Teste de impressão", "Enviei um teste para \"%s\". Saiu o papel?" % alvo, parent=w)
+        except Exception as ex:
+            messagebox.showerror("Não consegui imprimir", str(ex), parent=w)
+    ttk.Button(t11, text="Imprimir teste", command=_testar_imp).grid(row=7, column=0, sticky="w", pady=(8, 0))
 
     # ---------------- Celular pelo Wi-Fi da loja
     t10 = tab("Celular (Wi-Fi)")
@@ -674,6 +695,8 @@ def abrir(app):
         n["janelas_entrega"] = sorted(jan)
         n["dias_entrega"] = [i for i in range(7) if V["ent_d%d" % i].get()]
         n["entrega_antes"] = _num("Avisar antes (entregas)", V["ent_antes"].get(), 0, 120)
+        n["impressora"] = V["imp"].get().strip()
+        n["impressora_colunas"] = _num("Colunas do papel", V["imp_col"].get(), 24, 64)
         n["ntfy_ativo"] = bool(V["nt_on"].get())
         pin = V["pin"].get().strip()
         if pin and not (pin.isdigit() and 4 <= len(pin) <= 8):

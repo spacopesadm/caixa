@@ -11,7 +11,7 @@ import uuid
 
 TIPOS_ENTREGA = ["Entrega", "Condicional (Levar)", "Condicional (Buscar)", "Troca"]
 TIPOS = TIPOS_ENTREGA + ["Condicional", "Buscar condicional", "Atendimento", "Lembrete", "Aviso"]
-EXTRAS = ("cliente", "bairro", "cep", "telefone", "vendedor", "janela", "zona", "tempo")
+EXTRAS = ("cliente", "bairro", "cep", "telefone", "vendedor", "janela", "zona", "tempo", "endereco", "referencia", "obs")
 ANTES = [0, 5, 10, 15, 30, 60]
 
 
@@ -143,8 +143,15 @@ def roteiro_texto(lista, iso):
             atual = it["janela"]
             out += ["", "== %s ==" % atual.replace("-", " às ")]
         out.append("- %s | %s | %s%s | %s | %s%s" % (it["tipo"], it.get("cliente", ""), it.get("bairro", ""),
-                   (" (Zona %s)" % it["zona"]) if it.get("zona") else "", it.get("telefone", ""), it.get("vendedor", ""),
+                   (" (Região %s)" % it["zona"]) if it.get("zona") else "", it.get("telefone", ""), it.get("vendedor", ""),
                    " [FEITO]" if it.get("feito") else ""))
         if it.get("detalhe"):
             out.append("    " + it["detalhe"].replace("\n", " / "))
     return "\n".join(out)
+
+
+def chave_bairro(s):
+    """Para comparar bairros sem acento e sem maiúsculas."""
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(s or "")).encode("ascii", "ignore").decode().lower()
+    return " ".join(t.split())

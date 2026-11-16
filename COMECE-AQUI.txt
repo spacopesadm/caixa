@@ -49,3 +49,9 @@ APP DOS VENDEDORES - ENTREGAS (versão 12)
 - Os horários (padrão 09:00-11:00, 12:00-13:00, 15:00-16:00, 18:00-19:00, segunda a sexta) mudam em Configurações > Entregas.
 - Ao agendar, o item aparece na Agenda do caixa, avisa antes do horário e a janela mostra tudo em ordem de horário, zona e bairro. "Copiar roteiro do dia" gera a lista para o entregador.
 - Os bairros e zonas vêm da sua planilha (arquivo lider/bairros.json).
+
+VERSÃO 13 - BAIRROS E IMPRESSÃO
+- Bairro: o vendedor digita o começo (ex.: "cen", "sant") e toca na opção. Bairro fora da tabela também pode ser agendado.
+- O cadastro agora pede Endereço (obrigatório) e Ponto de referência (opcional).
+- Impressora térmica (Epson TM-T20x): Configurações > Entregas > escolha a impressora e toque em "Imprimir teste".
+- Na Agenda do caixa: "Imprimir endereço" (nome, telefone, endereço, referência) e "Imprimir roteiro do dia". O aviso da entrega também tem o botão "Imprimir endereço".

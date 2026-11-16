@@ -40,7 +40,7 @@ h2{font-size:15px;margin:18px 2px 6px}
 (function(){
 "use strict";
 var $=document.getElementById("app");
-var S={u:"",t:"",snap:null,erro:"",bairros:{},lista:[],pronto:false,env:{},msg:"",msgErro:false};
+var S={u:"",t:"",snap:null,erro:"",bairros:{},todos:[],regioes:{},lista:[],pronto:false,env:{},msg:"",msgErro:false};
 var TIPOS=["Entrega","Condicional (Levar)","Condicional (Buscar)","Troca"];
 var DIAS=["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
 function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
@@ -51,7 +51,7 @@ function iso(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate
 function brData(s){var p=s.split("-");return p[2]+"/"+p[1]}
 function diaSemana(isoStr){var p=isoStr.split("-");return new Date(+p[0],+p[1]-1,+p[2]).getDay()}  // 0=domingo
 function pyDia(isoStr){return (diaSemana(isoStr)+6)%7}                                              // 0=segunda (igual ao programa do caixa)
-function norm(s){return String(s||"").trim().toLowerCase()}
+function norm(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim()}
 
 (function(){
   var h=location.hash.replace(/^#/,"");
@@ -76,20 +76,21 @@ function janIni(j){return j.split("-")[0]}
 function montarForm(){
   var e=ent(),b=S.bairros;
   var lv=ler("ev_vend");
-  var dl='<datalist id="dl_bairros">'+Object.keys(b).map(function(k){return '<option value="'+esc(b[k].bairro)+'">'}).join("")+'</datalist>'+
-         '<datalist id="dl_vend">'+(e.vendedores||[]).map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist>';
+  var dl='<datalist id="dl_vend">'+(e.vendedores||[]).map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist>';
   $.innerHTML='<div class="card"><b>Novo agendamento</b>'+dl+
     '<label>Vendedor(a) <i>*</i></label><input id="f_vend" list="dl_vend" autocomplete="off" value="'+esc(lv)+'" placeholder="Seu nome">'+
     '<label>O que é <i>*</i></label><select id="f_tipo">'+TIPOS.map(function(t){return '<option>'+t+'</option>'}).join("")+'</select>'+
     '<label>Nome do cliente <i>*</i></label><input id="f_cliente" autocomplete="off">'+
     '<label>Telefone <i>*</i></label><input id="f_tel" type="tel" inputmode="numeric" placeholder="(33) 99999-9999" autocomplete="off">'+
-    '<label>Bairro <i>*</i></label><input id="f_bairro" list="dl_bairros" autocomplete="off" placeholder="Comece a digitar o bairro">'+
-    '<div id="i_bairro"></div>'+
+    '<label>Bairro <i>*</i></label><input id="f_bairro" autocomplete="off" placeholder="Digite o começo do nome (ex.: cen, sant)">'+
+    '<div id="sug"></div><div id="i_bairro"></div>'+
+    '<label>Endereço (rua, número, complemento) <i>*</i></label><input id="f_end" autocomplete="off" placeholder="Ex.: Rua das Flores, 120, apto 2">'+
+    '<label>Ponto de referência</label><input id="f_ref" autocomplete="off" placeholder="Ex.: ao lado da padaria, portão azul">'+
     '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div>'+
     '<div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
     '<div><label>Horário <i>*</i></label><select id="f_jan"></select></div></div>'+
     '<div id="i_jan"></div>'+
-    '<label>Rua, número e observações</label><textarea id="f_det" rows="3" placeholder="Ex.: Rua das Flores, 120 - casa azul. Levar maquininha."></textarea>'+
+    '<label>Observações</label><textarea id="f_det" rows="2" placeholder="Ex.: levar maquininha, cliente só atende depois das 10h"></textarea>'+
     '<button class="go" id="b_enviar">Agendar</button><div id="f_msg"></div></div>'+
     '<div id="lista"></div>';
   document.getElementById("f_tel").addEventListener("input",function(ev){
@@ -97,19 +98,42 @@ function montarForm(){
     if(d.length>2)o="("+d.slice(0,2)+") "+d.slice(2,d.length>10?7:6)+(d.length>(d.length>10?7:6)?"-"+d.slice(d.length>10?7:6):"");
     this.value=o});
   document.getElementById("f_cep").addEventListener("input",function(){var d=this.value.replace(/\D/g,"").slice(0,8);this.value=d.length>5?d.slice(0,5)+"-"+d.slice(5):d});
-  document.getElementById("f_bairro").addEventListener("input",infoBairro);
+  document.getElementById("f_bairro").addEventListener("input",function(){sugerir();infoBairro()});
+  document.getElementById("f_bairro").addEventListener("focus",sugerir);
   document.getElementById("f_data").addEventListener("change",atualizaJanelas);
   document.getElementById("f_jan").addEventListener("change",infoJanela);
   document.getElementById("f_vend").addEventListener("change",function(){guardar("ev_vend",this.value.trim())});
   document.getElementById("b_enviar").addEventListener("click",enviar);
   atualizaJanelas();S.pronto=true;
 }
+function regNome(z){var r=S.regioes[z];return r?r.nome:""}
 function infoBairro(){
   var b=S.bairros[norm(val("f_bairro"))],el=document.getElementById("i_bairro"),v=val("f_bairro").trim();
   if(!v){el.innerHTML="";return}
-  el.innerHTML=b?'<div class="info i-n">Zona '+b.zona+' · '+esc(b.dist)+' · cerca de '+esc(b.tempo)+'</div>':
-    '<div class="info i-warn">Esse bairro não está na tabela de rotas. Escolha um da lista (ou avise o caixa).</div>';
+  var r=b&&S.regioes[b.zona];
+  el.innerHTML=b?'<div class="info i-n">Região '+b.zona+' ('+esc(regNome(b.zona))+') · '+esc(b.dist)+' · cerca de '+esc(b.tempo)+(r?' · prazo mínimo '+esc(r.prazo):"")+'</div>':
+    '<div class="info i-warn">Bairro fora da tabela de rotas. Pode agendar mesmo assim; o caixa confere a rota.</div>';
   infoJanela();
+}
+function sugerir(){
+  var q=norm(val("f_bairro")),el=document.getElementById("sug");
+  if(!q){el.innerHTML="";return}
+  var ex=S.bairros[q];if(ex&&norm(ex.bairro)===q&&S.todos.filter(function(x){return norm(x.bairro).indexOf(q)===0}).length<2){el.innerHTML="";return}
+  var rs=[];
+  S.todos.forEach(function(b){
+    var nomes=[b.bairro].concat(b.alias||[]),best=9;
+    nomes.forEach(function(n){var nn=norm(n),pal=nn.split(" ");
+      if(nn.indexOf(q)===0)best=Math.min(best,0);
+      else if(pal.some(function(w){return w.indexOf(q)===0}))best=Math.min(best,1);
+      else if(nn.indexOf(q)>=0)best=Math.min(best,2)});
+    if(best<9)rs.push({b:b,s:best});
+  });
+  rs.sort(function(a,c){return a.s-c.s||(a.b.bairro<c.b.bairro?-1:1)});
+  if(!rs.length){el.innerHTML='<div class="info i-n">Nenhum bairro da tabela começa assim. Você pode escrever o nome completo e agendar mesmo assim.</div>';return}
+  el.innerHTML='<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px">'+rs.slice(0,8).map(function(x){
+    return '<div class="op" data-b="'+esc(x.b.bairro)+'" style="padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card)"><b>'+esc(x.b.bairro)+'</b><div class="sub">Região '+x.b.zona+' · '+esc(x.b.dist)+' · '+esc(x.b.tempo)+'</div></div>'}).join("")+'</div>';
+  Array.prototype.forEach.call(el.querySelectorAll(".op"),function(d){
+    d.addEventListener("click",function(){document.getElementById("f_bairro").value=d.getAttribute("data-b");el.innerHTML="";infoBairro()})});
 }
 function atualizaJanelas(){
   var e=ent(),d=val("f_data"),sel=document.getElementById("f_jan"),aviso=document.getElementById("i_jan"),atual=sel.value;
@@ -118,7 +142,7 @@ function atualizaJanelas(){
   if(!ok){
     sel.innerHTML="";
     var nomes=e.dias.map(function(i){return DIAS[(i+1)%7]}).join(", ");
-    aviso.innerHTML='<div class="info i-bad">Não há entregas em '+DIAS[diaSemana(d)]+'. Escolha outro dia ('+esc(nomes)+').</div>';return;
+    aviso.innerHTML='<div class="info i-bad">Não há entregas neste dia ('+DIAS[diaSemana(d)]+'). Escolha outro dia ('+esc(nomes)+').</div>';return;
   }
   var agora=new Date(),hoje=iso(agora),min=agora.getHours()*60+agora.getMinutes();
   sel.innerHTML=e.janelas.map(function(j){
@@ -136,21 +160,22 @@ function infoJanela(){
   if(!mesmos.length){el.innerHTML='<div class="info i-n">Nenhuma entrega agendada nesse horário ainda.</div>';return}
   var b=S.bairros[norm(val("f_bairro"))],igual=b&&mesmos.filter(function(x){return norm(x.bairro)===norm(b.bairro)}).length,
       zona=b&&mesmos.filter(function(x){return String(x.zona)===String(b.zona)}).length;
-  var txt=mesmos.map(function(x){return esc(x.bairro||"?")+(x.zona?" (Z"+x.zona+")":"")}).join(", ");
-  el.innerHTML='<div class="info '+(igual?"i-ok":zona?"i-ok":"i-n")+'">'+(igual?"Já tem entrega nesse bairro nesse horário: sai junto. ":zona?"Já tem entrega nessa zona nesse horário: boa combinação. ":"")+
+  var txt=mesmos.map(function(x){return esc(x.bairro||"?")+(x.zona?" (R"+x.zona+")":"")}).join(", ");
+  el.innerHTML='<div class="info '+(igual?"i-ok":zona?"i-ok":"i-n")+'">'+(igual?"Já tem entrega nesse bairro nesse horário: sai junto. ":zona?"Já tem entrega nessa região nesse horário: boa combinação. ":"")+
     'Neste horário: '+txt+'</div>';
 }
 function msg(t,erro){var m=document.getElementById("f_msg");if(m)m.innerHTML=t?'<div class="info '+(erro?"i-bad":"i-ok")+'">'+esc(t)+'</div>':""}
 function enviar(){
   var s=S.snap;if(!s){msg("Sem conexão com o caixa. Tente de novo.",true);return}
   var f={vendedor:val("f_vend").trim(),tipo:val("f_tipo"),cliente:val("f_cliente").trim(),telefone:val("f_tel"),bairro:val("f_bairro").trim(),
-         cep:val("f_cep"),data:val("f_data"),janela:val("f_jan"),detalhe:val("f_det").trim()};
+         endereco:val("f_end").trim(),referencia:val("f_ref").trim(),cep:val("f_cep"),data:val("f_data"),janela:val("f_jan"),detalhe:val("f_det").trim()};
   var tel=f.telefone.replace(/\D/g,"");
   if(!f.vendedor)return msg("Escreva o nome do vendedor.",true);
   if(!f.cliente)return msg("Escreva o nome do cliente.",true);
   if(tel.length<10||tel.length>11)return msg("Telefone inválido. Use DDD + número.",true);
   if(!f.bairro)return msg("Escolha o bairro.",true);
-  if(!S.bairros[norm(f.bairro)])return msg("Esse bairro não está na tabela de rotas. Escolha um da lista.",true);
+  if(!f.endereco)return msg("Escreva o endereço (rua e número).",true);
+  var bt=S.bairros[norm(f.bairro)];if(bt)f.bairro=bt.bairro;
   if(f.cep&&f.cep.replace(/\D/g,"").length!==8)return msg("CEP incompleto. Deixe vazio ou use 8 números.",true);
   if(!f.data||!f.janela)return msg("Escolha o dia e o horário.",true);
   if(ent().dias.indexOf(pyDia(f.data))<0)return msg("Nesse dia não há entregas.",true);
@@ -159,8 +184,8 @@ function enviar(){
   var b=document.getElementById("b_enviar");b.disabled=true;
   put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
     b.disabled=false;
-    ["f_cliente","f_tel","f_bairro","f_cep","f_det"].forEach(function(id){document.getElementById(id).value=""});
-    document.getElementById("i_bairro").innerHTML="";
+    ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det"].forEach(function(id){document.getElementById(id).value=""});
+    document.getElementById("i_bairro").innerHTML="";document.getElementById("sug").innerHTML="";
     msg("Agendado! Aparece na lista em alguns segundos.",false);
     S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:f.bairro,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
     infoJanela();desenhaLista();
@@ -182,7 +207,7 @@ function desenhaLista(){
     if(x.data!==dia){dia=x.data;jan="";h+='<div class="dia">'+brData(x.data)+" · "+DIAS[diaSemana(x.data)]+"</div>"}
     if(x.janela!==jan){jan=x.janela;h+='<div class="jan">'+esc((x.janela||"").replace("-"," às "))+"</div>"}
     h+='<div class="card" style="margin:4px 0"><div class="sub">'+esc(x.tipo)+(x.feito?" · feito":"")+'</div><b>'+esc(x.cliente||x.titulo||"")+'</b>'+
-       '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Zona '+esc(x.zona)+'</span>':"")+'</div>'+
+       '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Região '+esc(x.zona)+'</span>':"")+(x.endereco?'<div class="sub">'+esc(x.endereco)+'</div>':"")+'</div>'+
        '<div class="sub">'+esc(x.telefone||"")+(x.vendedor?" · "+esc(x.vendedor):"")+'</div>'+
        (x.feito||x._novo?"":'<div style="margin-top:6px"><button class="no" onclick="cancelar(\''+esc(x.id)+'\')">Cancelar</button></div>')+'</div>';
   });
@@ -210,7 +235,8 @@ function ciclo(){carregar().then(function(){setTimeout(ciclo,6000)})}
 
 if(!S.u||!S.t){$.innerHTML='<p class="empty">Este aparelho ainda não está conectado ao caixa. Peça o PIN ao gerente e abra o app.</p>'}
 else fetch("bairros.json",{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){
-  (j.bairros||[]).forEach(function(b){S.bairros[norm(b.bairro)]=b});ciclo()}).catch(function(){ciclo()});
+  S.regioes=j.regioes||{};S.todos=j.bairros||[];
+  S.todos.forEach(function(b){[b.bairro].concat(b.alias||[]).forEach(function(n){S.bairros[norm(n)]=b})});ciclo()}).catch(function(){ciclo()});
 })();
 </script>
 </body>
