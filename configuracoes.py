@@ -503,13 +503,24 @@ def abrir(app):
         except Exception as ex:
             messagebox.showerror("Não consegui imprimir", str(ex), parent=w)
     ttk.Button(t11, text="Imprimir teste", command=_testar_imp).grid(row=7, column=0, sticky="w", pady=(8, 0))
+    V["imp_auto"] = tk.BooleanVar(value=bool(cfg.get("imprimir_auto")))
+    ttk.Checkbutton(t11, text="Imprimir o endereço automaticamente quando o vendedor agendar (marque só no computador da impressora)",
+                    variable=V["imp_auto"]).grid(row=8, column=0, columnspan=3, sticky="w", pady=(12, 0))
 
     # ---------------- Celular pelo Wi-Fi da loja
-    t10 = tab("Celular (Wi-Fi)")
-    ttk.Label(t10, text="Celular pelo Wi-Fi da loja (app Android)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+    t10 = tab("Rede da loja (Wi-Fi)")
+    ttk.Label(t10, text="Rede da loja: celulares e outros computadores", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
     lc = getattr(app, "local", None)
     end = lc.endereco() if lc else ""
-    if not lc or not end:
+    if cfg.get("modo_cliente"):
+        ttk.Label(t10, text="Este computador está conectado ao computador principal da loja (%s).\n"
+                            "Os dados e as configurações vêm de lá. Para mudar as configurações, use o computador principal."
+                            % (cfg.get("nuvem_url", "").replace("http://", "")), foreground=GREY, wraplength=720,
+                  justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        ttk.Button(t10, text="Conectar a outro computador principal...", command=app.open_conectar_servidor).grid(row=2, column=0, sticky="w")
+        ttk.Button(t10, text="Voltar a ser independente", command=lambda: (app.desconectar_servidor(), messagebox.showinfo(
+            "Painel do Caixa", "Pronto. Feche o programa (ícone da bandeja > Sair) e abra de novo.", parent=w))).grid(row=2, column=1, sticky="w", padx=8)
+    elif not lc or not end:
         ttk.Label(t10, text="A conexão pelo Wi-Fi não está ativa neste computador (%s). Confira se o computador está na rede e se o Windows "
                             "não bloqueou o programa." % (getattr(lc, "erro", "") or "sem rede"), foreground=GREY, wraplength=720,
                   justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
@@ -527,7 +538,8 @@ def abrir(app):
                             "Se o app não achar o computador, digite o endereço acima na tela do app. "
                             "Dica: no roteador, reserve este endereço para este computador para ele não mudar.",
                   foreground=GREY, wraplength=720, justify="left").grid(row=4, column=0, columnspan=3, sticky="w", pady=(14, 0))
-        cod_l = (cfg.get("nuvem_codigo") or cfg.get("local_codigo") or "")
+        ttk.Button(t10, text="Este é um computador secundário: conectar a outro principal...", command=app.open_conectar_servidor).grid(row=6, column=0, columnspan=2, sticky="w", pady=(12, 0))
+        cod_l = (cfg.get("local_codigo") or "")
         link_l = "%s/#u=%s&t=%s" % (end, end, cod_l)
 
         def abrir_l():
@@ -696,6 +708,7 @@ def abrir(app):
         n["dias_entrega"] = [i for i in range(7) if V["ent_d%d" % i].get()]
         n["entrega_antes"] = _num("Avisar antes (entregas)", V["ent_antes"].get(), 0, 120)
         n["impressora"] = V["imp"].get().strip()
+        n["imprimir_auto"] = bool(V["imp_auto"].get())
         n["impressora_colunas"] = _num("Colunas do papel", V["imp_col"].get(), 24, 64)
         n["ntfy_ativo"] = bool(V["nt_on"].get())
         pin = V["pin"].get().strip()

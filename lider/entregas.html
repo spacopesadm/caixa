@@ -89,6 +89,7 @@ function montarForm(){
     '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div>'+
     '<div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
     '<div><label>Horário <i>*</i></label><select id="f_jan"></select></div></div>'+
+    '<div id="w_esp" style="display:none"><label>Horário específico <i>*</i></label><input id="f_esp" type="time"></div>'+
     '<div id="i_jan"></div>'+
     '<label>Observações</label><textarea id="f_det" rows="2" placeholder="Ex.: levar maquininha, cliente só atende depois das 10h"></textarea>'+
     '<button class="go" id="b_enviar">Agendar</button><div id="f_msg"></div></div>'+
@@ -101,7 +102,7 @@ function montarForm(){
   document.getElementById("f_bairro").addEventListener("input",function(){sugerir();infoBairro()});
   document.getElementById("f_bairro").addEventListener("focus",sugerir);
   document.getElementById("f_data").addEventListener("change",atualizaJanelas);
-  document.getElementById("f_jan").addEventListener("change",infoJanela);
+  document.getElementById("f_jan").addEventListener("change",function(){var o=val("f_jan")==="__outro";document.getElementById("w_esp").style.display=o?"block":"none";if(o)document.getElementById("f_esp").focus();infoJanela()});
   document.getElementById("f_vend").addEventListener("change",function(){guardar("ev_vend",this.value.trim())});
   document.getElementById("b_enviar").addEventListener("click",enviar);
   atualizaJanelas();S.pronto=true;
@@ -147,14 +148,15 @@ function atualizaJanelas(){
   var agora=new Date(),hoje=iso(agora),min=agora.getHours()*60+agora.getMinutes();
   sel.innerHTML=e.janelas.map(function(j){
     var ini=janIni(j).split(":"),passou=d===hoje&&(+ini[0]*60+(+ini[1]))<=min;
-    return '<option value="'+esc(j)+'"'+(passou?" disabled":"")+'>'+esc(j.replace("-"," às "))+(passou?" (já passou)":"")+'</option>'}).join("");
+    return '<option value="'+esc(j)+'"'+(passou?" disabled":"")+'>'+esc(j.replace("-"," às "))+(passou?" (já passou)":"")+'</option>'}).join("")+'<option value="__outro">Outro horário (digitar)</option>';
   if(atual)for(var i=0;i<sel.options.length;i++)if(sel.options[i].value===atual&&!sel.options[i].disabled)sel.selectedIndex=i;
   if(sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].disabled){for(var k=0;k<sel.options.length;k++)if(!sel.options[k].disabled){sel.selectedIndex=k;break}}
   infoJanela();
 }
 function infoJanela(){
   var d=val("f_data"),j=val("f_jan"),el=document.getElementById("i_jan");
-  if(!el||!d||!j){return}
+  if(!el||!d||!j)return;
+  if(j==="__outro"){el.innerHTML="";return}
   if(ent().dias.indexOf(pyDia(d))<0)return;
   var mesmos=S.lista.filter(function(x){return x.data===d&&x.janela===j&&!S.env["x|"+x.id]});
   if(!mesmos.length){el.innerHTML='<div class="info i-n">Nenhuma entrega agendada nesse horário ainda.</div>';return}
@@ -177,6 +179,11 @@ function enviar(){
   if(!f.endereco)return msg("Escreva o endereço (rua e número).",true);
   var bt=S.bairros[norm(f.bairro)];if(bt)f.bairro=bt.bairro;
   if(f.cep&&f.cep.replace(/\D/g,"").length!==8)return msg("CEP incompleto. Deixe vazio ou use 8 números.",true);
+  if(f.janela==="__outro"){
+    var esp=val("f_esp");if(!esp)return msg("Digite o horário específico.",true);
+    var hp=esp.split(":");if(f.data===iso(new Date())&&(+hp[0]*60+(+hp[1]))<=new Date().getHours()*60+new Date().getMinutes())return msg("Esse horário já passou.",true);
+    f.janela=esp;
+  }
   if(!f.data||!f.janela)return msg("Escolha o dia e o horário.",true);
   if(ent().dias.indexOf(pyDia(f.data))<0)return msg("Nesse dia não há entregas.",true);
   guardar("ev_vend",f.vendedor);
@@ -184,7 +191,7 @@ function enviar(){
   var b=document.getElementById("b_enviar");b.disabled=true;
   put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
     b.disabled=false;
-    ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det"].forEach(function(id){document.getElementById(id).value=""});
+    ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det","f_esp"].forEach(function(id){document.getElementById(id).value=""});
     document.getElementById("i_bairro").innerHTML="";document.getElementById("sug").innerHTML="";
     msg("Agendado! Aparece na lista em alguns segundos.",false);
     S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:f.bairro,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
@@ -205,7 +212,7 @@ function desenhaLista(){
   var dia="",jan="";
   its.forEach(function(x){
     if(x.data!==dia){dia=x.data;jan="";h+='<div class="dia">'+brData(x.data)+" · "+DIAS[diaSemana(x.data)]+"</div>"}
-    if(x.janela!==jan){jan=x.janela;h+='<div class="jan">'+esc((x.janela||"").replace("-"," às "))+"</div>"}
+    if(x.janela!==jan){jan=x.janela;h+='<div class="jan">'+esc((x.janela||"").replace("-"," às "))+((x.janela||"").indexOf("-")<0?" (horário específico)":"")+"</div>"}
     h+='<div class="card" style="margin:4px 0"><div class="sub">'+esc(x.tipo)+(x.feito?" · feito":"")+'</div><b>'+esc(x.cliente||x.titulo||"")+'</b>'+
        '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Região '+esc(x.zona)+'</span>':"")+(x.endereco?'<div class="sub">'+esc(x.endereco)+'</div>':"")+'</div>'+
        '<div class="sub">'+esc(x.telefone||"")+(x.vendedor?" · "+esc(x.vendedor):"")+'</div>'+

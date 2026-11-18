@@ -75,6 +75,8 @@ LOG_FILE = os.path.join(BASE, "erro.log")
 PLACAR_FILE = os.path.join(BASE, "placar.json")
 ENVIOS_FILE = os.path.join(BASE, "envios_pendentes.json")
 AGENDA_FILE = os.path.join(BASE, "agenda.json")
+IMPRESSOS_FILE = os.path.join(BASE, "impressos.json")
+ARVORE_FILE = os.path.join(BASE, "rede_arvore.json")
 PRAZO_MIN, LEVE_MIN = 5, 15          # até 5 min: no prazo; até 15 min: atraso leve
 NIVEIS = [(0, "Aprendiz"), (100, "Dedicado"), (300, "Craque do Caixa"), (700, "Mestre do Caixa"), (1500, "Lenda da Loja")]
 
@@ -121,6 +123,8 @@ DEFAULT_CONFIG = {
     "entrega_antes": 15,
     "impressora": "",
     "impressora_colunas": 48,
+    "imprimir_auto": False,
+    "modo_cliente": False,
     "local_ativo": True,
     "local_pin": "",
     "local_codigo": "",
@@ -247,6 +251,7 @@ DEFAULT_CONFIG = {
 
 # cores
 PINK, ORANGE, RED, BLUE = "#E0246F", "#E8730C", "#C8102E", "#1F46D1"
+ROXO = "#6D28D9"          # entregas, condicionais e trocas: cor própria para chamar atenção
 INK, PAPER, GREY, GREEN = "#14202E", "#FFFFFF", "#5B6878", "#13805A"
 BG = "#E9EDF2"
 FONT = "Segoe UI"
@@ -510,17 +515,27 @@ class App:
         self.agenda = []
         self.ag_est = {}          # estado dos avisos da agenda neste computador: id -> {next, pre, n, pop}
         self.ag_win = None
+        self.impressos = set(load_json(IMPRESSOS_FILE, []))
         try:
             if agenda is not None:
                 self.agenda = agenda.limpar(agenda.mesclar([], load_json(AGENDA_FILE, [])))
         except Exception:
             log("agenda: " + traceback.format_exc())
         self.local = None
+        self.bridge = False
+        self.redescobrindo = False
         try:
-            if rede_local is not None and self.cfg.get("local_ativo", True):
-                self.local = rede_local.Local(lambda: self.cfg, self.cmd_q, log)
+            if rede_local is not None and self.cfg.get("local_ativo", True) and not self.cfg.get("modo_cliente"):
+                self.local = rede_local.Local(lambda: self.cfg, self.cmd_q, log, arquivo=ARVORE_FILE)
                 if self.local.erro:
                     log("rede local: " + self.local.erro)
+                elif nuvem is not None:
+                    # computador principal: também sincroniza com a própria rede da loja (os outros computadores e os celulares falam com ele)
+                    lan = nuvem.Nuvem(lambda: dict(self.cfg, nuvem_url=self.local.url_local(), nuvem_codigo=self.local.codigo(), ntfy_ativo=False),
+                                      self.cmd_q, log, intervalo=3)
+                    self.nuvem = nuvem.Multi([self.nuvem, lan])
+                    self.bridge = True
+                    threading.Timer(2.0, self.empurrar_config).start()      # os computadores que se conectarem recebem estas configurações
         except Exception:
             log("rede local: " + traceback.format_exc())
         self.win = None
@@ -590,8 +605,6 @@ class App:
             return
         try:
             snap = self.build_snapshot()
-            if self.local is not None:
-                self.local.definir(self.state["date"], snap)
             if self.nuvem is not None and self.nuvem.ativo():
                 self.nuvem.enviar(self.state["date"], snap)
                 self.empurrar_estado()
@@ -649,7 +662,11 @@ class App:
                         st[b][i] = 0
 
     def merge_remoto(self, dia, rem, maquinas):
-        self.maquinas = maquinas or {}
+        novo = dict(getattr(self, "maquinas", None) or {})
+        for m, v in (maquinas or {}).items():          # juntando o que vem da rede da loja e da internet: vale a presença mais recente
+            if isinstance(v, dict) and (m not in novo or float(v.get("ts", 0)) > float((novo[m] or {}).get("ts", 0))):
+                novo[m] = v
+        self.maquinas = novo
         if dia != self.state["date"] or not isinstance(rem, dict):
             return
         st, sent, mudou = self.state, self.enviado, False
@@ -658,7 +675,8 @@ class App:
             if k not in rm:
                 rm.append(k)
                 mudou = True
-            sent.add(("rm", dia, k))
+            if not self.bridge:
+                sent.add(("rm", dia, k))
         rms = set(rm)
         antes = len(st["log"])
         st["log"] = [e for e in st["log"] if chave_log(e) not in rms]
@@ -668,7 +686,8 @@ class App:
             if k in rms or k in tem or not isinstance(e, dict) or "k" not in e or "done" not in e:
                 continue
             st["log"].append(e)
-            sent.add(("log", dia, k))
+            if not self.bridge:
+                sent.add(("log", dia, k))
             mudou = True
         st["log"].sort(key=lambda x: x["done"])
         ids = {p.get("id") for p in st.get("penal", [])}
@@ -676,7 +695,8 @@ class App:
             if isinstance(p, dict) and i not in ids:
                 p.setdefault("id", i)
                 st.setdefault("penal", []).append(p)
-                sent.add(("pn", dia, i))
+                if not self.bridge:
+                    sent.add(("pn", dia, i))
                 mudou = True
         for f, n in (rem.get("bonus") or {}).items():
             try:
@@ -722,6 +742,121 @@ class App:
         if criar:
             self.empurrar_config()
         self.push_snapshot()
+
+    # ---- este computador como "cliente": usa a rede da loja do computador principal (pelo PIN)
+    def conectar_servidor(self, host, codigo):
+        self.cfg["nuvem_url"] = "http://%s" % host
+        self.cfg["nuvem_codigo"] = codigo
+        self.cfg["modo_cliente"] = True
+        self.cfg["local_ativo"] = False
+        self.cfg["cfg_rev"] = 0                      # recebe as configurações do computador principal
+        save_json(CONFIG_FILE, self.cfg)
+        if self.local is not None:
+            try:
+                self.local.sair()
+            except Exception:
+                pass
+            self.local = None
+        if self.bridge and isinstance(self.nuvem, nuvem.Multi):      # volta a uma só sincronização (a primeira é a "internet", agora apontando para o principal)
+            for extra in self.nuvem.itens[1:]:
+                extra.sair()
+            self.nuvem = self.nuvem.itens[0]
+        self.bridge = False
+        if self.nuvem is not None:
+            self.nuvem.ultimo.clear()
+        self.enviado.clear()
+        self.push_snapshot()
+
+    def desconectar_servidor(self):
+        """Volta a ser um computador independente (com a internet/Firebase do jeito de antes, se houver código)."""
+        self.cfg["modo_cliente"] = False
+        self.cfg["nuvem_url"] = NUVEM_URL_PADRAO
+        self.cfg["nuvem_codigo"] = ""
+        self.cfg["local_ativo"] = True
+        save_json(CONFIG_FILE, self.cfg)
+
+    def redescobrir_servidor(self):
+        """O computador principal mudou de endereço na rede? Procura de novo pelo código da loja."""
+        if self.redescobrindo or rede_local is None:
+            return
+        self.redescobrindo = True
+        cod = self.cfg.get("nuvem_codigo", "")
+
+        def run():
+            try:
+                achou = rede_local.descobrir(cod)
+                if achou:
+                    self.cmd_q.put(("servidor_achado", achou[0]))
+            finally:
+                self.redescobrindo = False
+        threading.Thread(target=run, daemon=True).start()
+
+    def open_conectar_servidor(self):
+        """Janela: conectar este computador ao computador principal da loja pelo PIN."""
+        if rede_local is None:
+            return
+        w = tk.Toplevel(self.root)
+        w.title("Conectar ao computador principal")
+        w.configure(bg=BG)
+        w.attributes("-topmost", True)
+        w.geometry("+%d+%d" % (max(40, self.root.winfo_screenwidth() // 2 - 240), 90))
+        tk.Label(w, text="Conectar ao computador principal", font=(FONT, 15, "bold"), bg=BG, fg=INK).pack(padx=26, pady=(18, 4), anchor="w")
+        tk.Label(w, text="No computador principal, abra Configurações > Rede da loja e veja o PIN de 6 números.\n"
+                         "Os dois computadores precisam estar na mesma rede (Wi-Fi ou cabo).", font=(FONT, 10), bg=BG, fg=GREY, justify="left").pack(padx=26, anchor="w")
+        pin = tk.StringVar()
+        manual = tk.StringVar()
+        tk.Label(w, text="PIN:", font=(FONT, 11), bg=BG, fg=INK).pack(padx=26, pady=(14, 0), anchor="w")
+        e1 = tk.Entry(w, textvariable=pin, font=(FONT, 20, "bold"), width=8, justify="center")
+        e1.pack(padx=26, anchor="w")
+        tk.Label(w, text="Endereço do principal (só se não achar sozinho, ex.: 192.168.0.10:8765):", font=(FONT, 9), bg=BG, fg=GREY).pack(padx=26, pady=(10, 0), anchor="w")
+        tk.Entry(w, textvariable=manual, font=(FONT, 10), width=30).pack(padx=26, anchor="w")
+        msg = tk.Label(w, text="", font=(FONT, 10), bg=BG, fg=RED, justify="left", wraplength=420)
+        msg.pack(padx=26, pady=(10, 0), anchor="w")
+        res = {}
+
+        def conectar():
+            p = pin.get().strip()
+            if len(p) != 6 or not p.isdigit():
+                msg.config(text="Digite o PIN de 6 números.", fg=RED)
+                return
+            btn.config(state="disabled")
+            msg.config(text="Procurando o computador principal na rede...", fg=GREY)
+            m = manual.get().strip().replace("http://", "").rstrip("/")
+
+            def run():
+                try:
+                    host = (m if ":" in m or not m else m + ":%d" % rede_local.PORTA_LOCAL)
+                    if not host:
+                        achados = rede_local.descobrir()
+                        if not achados:
+                            raise ValueError("Não achei o computador principal. Confira se ele está ligado, com o programa aberto, na mesma rede. "
+                                             "Se o Windows perguntou sobre o Firewall, ele precisa ter permitido (Redes privadas).")
+                        host = achados[0]
+                    cod, loja = rede_local.parear(host, p)
+                    res["ok"] = (host, cod)
+                except ValueError as ex:
+                    res["erro"] = str(ex)
+                except Exception as ex:
+                    res["erro"] = "Erro: %s" % ex
+            t = threading.Thread(target=run, daemon=True)
+            t.start()
+
+            def espera():
+                if t.is_alive():
+                    w.after(300, espera)
+                    return
+                btn.config(state="normal")
+                if res.get("ok"):
+                    self.conectar_servidor(*res["ok"])
+                    msg.config(text="Conectado! Este computador agora usa os dados do computador principal.", fg=GREEN)
+                    btn.config(text="Fechar", command=w.destroy)
+                else:
+                    msg.config(text=res.get("erro", "Não deu certo."), fg=RED)
+                res.clear()
+            w.after(300, espera)
+        btn = tk.Button(w, text="Conectar", command=conectar, font=(FONT, 12, "bold"), bg=INK, fg="white", bd=0, padx=18, pady=8)
+        btn.pack(padx=26, pady=(12, 18), anchor="w")
+        e1.focus_set()
 
     def arquivo_loja(self):
         for pasta in (os.path.dirname(sys.executable) if FROZEN else None, BASE, os.getcwd()):
@@ -778,6 +913,8 @@ class App:
         b1 = tk.Button(w, text="Este é o primeiro computador: criar a loja", command=criar, font=(FONT, 12, "bold"), bg=INK, fg="white",
                        bd=0, padx=16, pady=10)
         b1.pack(padx=28, pady=(16, 6), fill="x")
+        tk.Button(w, text="Este é outro computador: conectar ao principal pelo PIN", command=lambda: (w.destroy(), self.open_conectar_servidor()),
+                  font=(FONT, 12, "bold"), bg=PINK, fg="white", bd=0, padx=16, pady=10).pack(padx=28, pady=(6, 6), fill="x")
         tk.Label(w, text="Já existe outro computador? Digite o código da loja (ou copie e cole):", font=(FONT, 10), bg=BG, fg=INK).pack(padx=28, pady=(12, 2), anchor="w")
         var = tk.StringVar()
         ent = tk.Entry(w, textvariable=var, font=(FONT, 12), width=44)
@@ -819,7 +956,7 @@ class App:
         tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
 
     # ---- configurações iguais em todos os computadores
-    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas"}
+    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas", "imprimir_auto", "modo_cliente"}
 
     def empurrar_config(self):
         if self.nuvem is None or not self.nuvem.ativo():
@@ -840,6 +977,8 @@ class App:
         novo.update({k: v for k, v in dados.items() if k not in self.CFG_LOCAIS})
         novo["cfg_rev"] = rev
         self.apply_config(novo, remoto=True)
+        if self.bridge:
+            self.empurrar_config()          # repassa para a outra sincronização (rede da loja <-> internet)
 
     def minha_vez_relatorio(self):
         """Posição deste computador entre os que estão ligados. O primeiro gera o relatório, os outros só entram se ele falhar."""
@@ -960,7 +1099,7 @@ class App:
     def avisar_lider(self, titulo, texto, prio=3):
         if self.local is not None:
             self.local.avisar(titulo, texto, prio)
-        if self.nuvem is not None:
+        if self.nuvem is not None and not self.cfg.get("modo_cliente"):
             self.nuvem.avisar(titulo, texto, prio)
 
     def on_validacoes(self, dia, novas):
@@ -1439,6 +1578,8 @@ class App:
             self.tick_agenda()
         except Exception:
             log("tick_agenda: " + traceback.format_exc())
+        if self.cfg.get("modo_cliente") and self.nuvem is not None and self.nuvem.ultimo_erro and time.time() - self.nuvem.ultimo_ok > 90:
+            self.redescobrir_servidor()
         m = d.hour * 60 + d.minute
         a, p = self.ranges()
         ph = self.phase(m)
@@ -2094,6 +2235,11 @@ class App:
                 log("config_remota: " + traceback.format_exc())
         elif c[0] == "pedidos":
             self.on_pedidos(c[1], c[2])
+        elif c[0] == "servidor_achado":
+            if self.cfg.get("modo_cliente") and "http://" + c[1] != self.cfg.get("nuvem_url"):
+                self.cfg["nuvem_url"] = "http://" + c[1]
+                save_json(CONFIG_FILE, self.cfg)
+                log("servidor principal agora em %s" % c[1])
         elif c[0] == "agenda_remota":
             try:
                 self.ag_remota(c[1])
@@ -2151,6 +2297,8 @@ class App:
         if agenda is None or not isinstance(dados, dict):
             return
         antes = json.dumps(self.agenda, sort_keys=True)
+        ids_antes = {x["id"] for x in self.agenda}
+        prev = {x["id"]: x for x in self.agenda}
         novo = agenda.limpar(agenda.mesclar(self.agenda, list(dados.values())))
         if json.dumps(novo, sort_keys=True) == antes:
             return
@@ -2158,6 +2306,11 @@ class App:
         save_json(AGENDA_FILE, self.agenda)
         self.sync_soon()
         self.ag_atualizar_janela()
+        novos = [it for it in novo if it["id"] not in ids_antes]
+        for it in novos:
+            self.auto_imprimir(it)
+        if self.bridge and self.nuvem is not None:         # repassa para a outra sincronização (rede da loja <-> internet)
+            self.nuvem.escrever([("agenda/" + it["id"], it) for it in novo if prev.get(it["id"]) != it][-60:])
 
     def pedido_agenda(self, p):
         """Item novo ou 'feito' vindo do celular. O id vem do pedido, então vários computadores chegam ao mesmo resultado."""
@@ -2197,6 +2350,8 @@ class App:
             self.nuvem.escrever([("agenda/" + it["id"], it)])
         self.sync_soon()
         self.ag_atualizar_janela()
+        if p.get("op") not in ("feito", "apagar"):
+            self.auto_imprimir(it)
         return True
 
     def entregas_cfg(self):
@@ -2211,9 +2366,12 @@ class App:
             if not pega(k):
                 raise ValueError("falta " + rot)
         data = agenda.parse_data(pega("data"))
-        janela = agenda.parse_janela(pega("janela"))
-        if janela not in (self.cfg.get("janelas_entrega") or []):
-            raise ValueError("horário fora das janelas de entrega")
+        try:
+            janela = agenda.parse_janela(pega("janela"))
+            if janela not in (self.cfg.get("janelas_entrega") or []):
+                janela = agenda.parse_hora(pega("janela").split("-")[0])        # horário fora das janelas: vale como horário específico
+        except ValueError:
+            janela = agenda.parse_hora(pega("janela"))                         # horário específico (ex.: 14:30)
         if dt.datetime.strptime(data, "%Y-%m-%d").weekday() not in (self.cfg.get("dias_entrega") or []):
             raise ValueError("dia sem entregas")
         tel = re.sub(r"\D", "", pega("telefone"))
@@ -2252,6 +2410,29 @@ class App:
             from tkinter import messagebox
             messagebox.showerror("Não consegui imprimir", str(e))
 
+    def auto_imprimir(self, it, recente=True):
+        """Impressão automática do endereço quando o vendedor agenda (só no computador onde isso está ligado)."""
+        if not self.cfg.get("imprimir_auto") or it.get("tipo") not in (agenda.TIPOS_ENTREGA if agenda else []) or not it.get("endereco"):
+            return
+        if it["id"] in self.impressos or it.get("apagado") or it.get("feito"):
+            return
+        if recente and time.time() * 1000 - int(it.get("mod", 0)) > 15 * 60 * 1000:
+            return                         # item antigo (sincronização ao abrir o programa): não imprime de novo
+        self.impressos.add(it["id"])
+        save_json(IMPRESSOS_FILE, sorted(self.impressos)[-500:])
+        dados = dict(it)
+        colunas, nome = self.cfg.get("impressora_colunas", 48), self.cfg.get("impressora", "")
+
+        def trabalho():
+            try:
+                import impressao
+                impressao.enviar(nome, impressao.montar_endereco(dados, colunas), "Entrega")
+                self.root.after(0, lambda: self.show("Entrega impressa", "%s - %s (%s)" % (dados["tipo"], dados.get("cliente", ""), dados.get("bairro", "")), "joy", 5000, True))
+            except Exception as e:
+                msg = str(e)
+                self.root.after(0, lambda: self.show("Não consegui imprimir a entrega", "%s. Use \"Imprimir endereço\" na Agenda." % msg, "tag", 12000, True))
+        threading.Thread(target=trabalho, daemon=True).start()
+
     def ag_imprimir_roteiro(self, iso):
         try:
             import impressao
@@ -2287,11 +2468,11 @@ class App:
         iid = it["id"]
         if pre:
             self.beep(0)
-            e["pop"] = self.card("br", 440, BLUE, "#FFFFFF", "Daqui a %d min · %s às %s" % (int(it.get("antes", 0)), it["tipo"], it["hora"]), corpo,
+            e["pop"] = self.card("br", 440, ROXO if it.get("janela") else BLUE, "#FFFFFF", "Daqui a %d min · %s às %s" % (int(it.get("antes", 0)), it["tipo"], it["hora"]), corpo,
                                  [("Ok", None), ("Já fiz", lambda: self.ag_feito(iid))], text_size=14)
             self.avisar_lider("Agenda: %s" % it["tipo"], "Daqui a %d min (%s): %s" % (int(it.get("antes", 0)), it["hora"], corpo), 3)
             return
-        cor = RED if atraso >= 15 else PINK
+        cor = RED if atraso >= 15 else (ROXO if it.get("janela") else PINK)
         if atraso >= 15:
             self.alarm(2)
         else:
@@ -2374,6 +2555,9 @@ class App:
         for c, t, wd in (("quando", "Quando", 120), ("tipo", "Tipo", 130), ("titulo", "O que", 380), ("status", "Situação", 90)):
             tv.heading(c, text=t)
             tv.column(c, width=wd, anchor="w")
+        tv.tag_configure("entrega", background="#EDE4FF")
+        tv.tag_configure("atrasado", background="#FDE2E2")
+        tv.tag_configure("feito", foreground="#8A94A3")
         tv.pack(fill="both", expand=True, padx=16, pady=(6, 4))
         ordem = []
 
@@ -2406,7 +2590,8 @@ class App:
                 else:
                     st = ""
                 ordem.append(it["id"])
-                tv.insert("", "end", iid=it["id"], values=("%s %s" % (agenda.data_br(it["data"])[:5], (it.get("janela") or it["hora"]).replace("-", "–")), it["tipo"], it["titulo"], st))
+                tag = "feito" if it.get("feito") else ("atrasado" if st == "Atrasado" else ("entrega" if it.get("janela") else ""))
+                tv.insert("", "end", iid=it["id"], tags=(tag,), values=("%s %s" % (agenda.data_br(it["data"])[:5], (it.get("janela") or it["hora"]).replace("-", "–")), it["tipo"], it["titulo"], st))
         w.recarregar = recarregar
 
         def adicionar():
@@ -2749,8 +2934,8 @@ class App:
                   padx=12, pady=4).pack(fill="x", pady=(0, 4))
         tk.Button(right, text="Configurações", command=self.open_settings, font=(FONT, 10, "bold"), relief="solid", bd=1,
                   bg=PAPER, fg=INK, cursor="hand2", padx=12, pady=3).pack(fill="x")
-        tk.Button(right, text="Agenda (entregas e avisos)", command=self.open_agenda, font=(FONT, 10, "bold"), relief="solid", bd=1,
-                  bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
+        tk.Button(right, text="Agenda (entregas e avisos)", command=self.open_agenda, font=(FONT, 10, "bold"), relief="flat", bd=0,
+                  bg=ROXO, fg="#FFFFFF", activebackground=ROXO, activeforeground="#FFFFFF", cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
         tk.Button(right, text="Horário de hoje", command=self.open_hoje, font=(FONT, 10), relief="solid", bd=1,
                   bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
         W["btn_emp"] = tk.Button(right, text="Trocar funcionário", command=self.open_switch, font=(FONT, 10), relief="solid", bd=1,

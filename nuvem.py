@@ -140,7 +140,7 @@ class Nuvem:
         self.ev.set()
 
     def escrever(self, itens):
-        if not itens:
+        if not itens or not self.ativo():
             return
         with self.lock:
             self.escritas.extend(itens)
@@ -264,3 +264,42 @@ class Nuvem:
             self.cmd_q.put(("validacoes", dia, novas))
         self.ultimo_ok = time.time()
         self.ultimo_erro = ""
+
+
+class Multi:
+    """Várias sincronizações ao mesmo tempo (ex.: o computador principal fala com a rede da loja e com a internet).
+    O programa usa isto como se fosse uma só."""
+
+    def __init__(self, itens):
+        self.itens = [i for i in itens if i is not None]
+
+    def ativo(self):
+        return any(i.ativo() for i in self.itens)
+
+    def enviar(self, dia, snapshot):
+        for i in self.itens:
+            i.enviar(dia, snapshot)
+
+    def escrever(self, itens):
+        for i in self.itens:
+            i.escrever(itens)
+
+    def avisar(self, titulo, texto, prioridade=3):
+        for i in self.itens:
+            i.avisar(titulo, texto, prioridade)
+
+    def confirmar(self, novas):
+        for i in self.itens:
+            i.confirmar(novas)
+
+    def sair(self):
+        for i in self.itens:
+            i.sair()
+
+    @property
+    def ultimo_ok(self):
+        return max([i.ultimo_ok for i in self.itens] or [0])
+
+    @property
+    def ultimo_erro(self):
+        return next((i.ultimo_erro for i in self.itens if i.ultimo_erro), "")

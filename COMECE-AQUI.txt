@@ -55,3 +55,13 @@ VERSÃO 13 - BAIRROS E IMPRESSÃO
 - O cadastro agora pede Endereço (obrigatório) e Ponto de referência (opcional).
 - Impressora térmica (Epson TM-T20x): Configurações > Entregas > escolha a impressora e toque em "Imprimir teste".
 - Na Agenda do caixa: "Imprimir endereço" (nome, telefone, endereço, referência) e "Imprimir roteiro do dia". O aviso da entrega também tem o botão "Imprimir endereço".
+
+VERSÃO 14 - VÁRIOS COMPUTADORES PELO PIN, IMPRESSÃO AUTOMÁTICA
+- Computador principal (o servidor): é o que fica ligado e com a impressora. Em Configurações > Rede da loja (Wi-Fi) aparece o PIN de 6 números.
+- Os outros computadores: instale o PainelDoCaixa.exe, e na primeira tela toque em "Este é outro computador: conectar ao principal pelo PIN" (ou Configurações > Rede da loja > conectar). Digite o PIN. Eles passam a usar os mesmos dados, agenda e configurações do principal. Mude as configurações só no principal.
+- Os computadores precisam estar na mesma rede (Wi-Fi/cabo) e o principal ligado com o programa aberto. Se o Windows perguntar sobre o Firewall: "Redes privadas" > Permitir.
+- Se o principal mudar de endereço na rede, os outros procuram sozinhos.
+- Impressão automática: Configurações > Entregas > marque "Imprimir o endereço automaticamente" SÓ no computador da impressora (o principal).
+- Horário da entrega: continuam os horários prontos e há a opção "Outro horário (digitar)" para um horário específico.
+- A Agenda e as entregas aparecem em roxo para destacar.
+- Ao atualizar, feche o programa antigo (ícone da bandeja > Sair) antes de abrir o novo.
