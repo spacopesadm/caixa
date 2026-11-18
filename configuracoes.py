@@ -451,9 +451,9 @@ def abrir(app):
             import io
             import qrcode
             img = qrcode.make(link, box_size=4, border=2)
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            w._qr = tk.PhotoImage(data=base64.b64encode(buf.getvalue()).decode("ascii"))
+            png = io.BytesIO()
+            img.save(png, format="PNG")
+            w._qr = tk.PhotoImage(data=base64.b64encode(png.getvalue()).decode("ascii"))
             tk.Label(t9, image=w._qr, bd=0).grid(row=4, column=3, rowspan=4, sticky="ne", padx=(24, 0))
         except Exception:
             pass
@@ -728,6 +728,14 @@ def abrir(app):
             novo = coletar()
         except ValueError as e:
             messagebox.showerror("Confira os dados", str(e), parent=w)
+            return
+        except Exception as e:
+            import traceback
+            try:
+                open(os.path.join(os.path.dirname(getattr(app, "cfg_path", "")) or ".", "erro.log"), "a", encoding="utf-8").write(traceback.format_exc())
+            except Exception:
+                pass
+            messagebox.showerror("Não consegui ler os campos", "Erro inesperado: %r\nMande o arquivo erro.log." % e, parent=w)
             return
         try:
             app.apply_config(novo)

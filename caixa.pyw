@@ -535,7 +535,7 @@ class App:
                                       self.cmd_q, log, intervalo=3)
                     self.nuvem = nuvem.Multi([self.nuvem, lan])
                     self.bridge = True
-                    threading.Timer(2.0, self.empurrar_config).start()      # os computadores que se conectarem recebem estas configurações
+                    threading.Timer(2.0, self.empurrar_config_forte).start()      # os computadores que se conectarem recebem estas configurações
         except Exception:
             log("rede local: " + traceback.format_exc())
         self.win = None
@@ -958,6 +958,12 @@ class App:
     # ---- configurações iguais em todos os computadores
     CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas", "imprimir_auto", "modo_cliente"}
 
+    def empurrar_config_forte(self):
+        """Ao abrir, o principal publica as configurações dele com revisão nova, para sobrescrever qualquer cópia antiga no online."""
+        self.cfg["cfg_rev"] = max(int(time.time() * 1000), int(self.cfg.get("cfg_rev", 0)) + 1)
+        save_json(CONFIG_FILE, self.cfg)
+        self.empurrar_config()
+
     def empurrar_config(self):
         if self.nuvem is None or not self.nuvem.ativo():
             return
@@ -965,6 +971,8 @@ class App:
         self.nuvem.escrever([("config", {"rev": int(self.cfg.get("cfg_rev", 0)), "json": json.dumps(dados, ensure_ascii=False)})])
 
     def config_remota(self, c):
+        if self.bridge:
+            return                  # computador principal: as configurações daqui valem; quem manda é este computador
         try:
             rev = int(c.get("rev", 0))
             self.rev_visto = max(getattr(self, "rev_visto", 0), rev)
@@ -977,8 +985,6 @@ class App:
         novo.update({k: v for k, v in dados.items() if k not in self.CFG_LOCAIS})
         novo["cfg_rev"] = rev
         self.apply_config(novo, remoto=True)
-        if self.bridge:
-            self.empurrar_config()          # repassa para a outra sincronização (rede da loja <-> internet)
 
     def minha_vez_relatorio(self):
         """Posição deste computador entre os que estão ligados. O primeiro gera o relatório, os outros só entram se ele falhar."""

@@ -56,6 +56,8 @@ VERSÃO 13 - BAIRROS E IMPRESSÃO
 - Impressora térmica (Epson TM-T20x): Configurações > Entregas > escolha a impressora e toque em "Imprimir teste".
 - Na Agenda do caixa: "Imprimir endereço" (nome, telefone, endereço, referência) e "Imprimir roteiro do dia". O aviso da entrega também tem o botão "Imprimir endereço".
 
+VERSÃO 15 - CORREÇÃO: o botão Salvar das Configurações não salvava (erro corrigido). O computador principal sempre vale sobre o online.
+
 VERSÃO 14 - VÁRIOS COMPUTADORES PELO PIN, IMPRESSÃO AUTOMÁTICA
 - Computador principal (o servidor): é o que fica ligado e com a impressora. Em Configurações > Rede da loja (Wi-Fi) aparece o PIN de 6 números.
 - Os outros computadores: instale o PainelDoCaixa.exe, e na primeira tela toque em "Este é outro computador: conectar ao principal pelo PIN" (ou Configurações > Rede da loja > conectar). Digite o PIN. Eles passam a usar os mesmos dados, agenda e configurações do principal. Mude as configurações só no principal.
