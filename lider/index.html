@@ -135,13 +135,13 @@ window.addAg=function(){
   if(!f.titulo||!f.titulo.trim()){S.ag.msg="Escreva o que é (ex.: Condicional para Fulana).";S.ag.erro=1;render();return}
   if(!f.data||!f.hora){S.ag.msg="Escolha o dia e a hora.";S.ag.erro=1;render();return}
   var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x");
-  put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:S.func||"",ts:ts,item:f}).then(function(){
+  put("pedidos/"+(function(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)})(new Date())+"/"+pid,{k:"ag",op:"add",fid:S.func||"",ts:ts,item:f}).then(function(){
     S.agFresh=true;S.ag={tipo:f.tipo,data:f.data,hora:"",antes:f.antes,titulo:"",detalhe:"",msg:"Enviado! Aparece na lista em alguns segundos.",erro:0};render()
   }).catch(function(){S.ag.msg="Não consegui enviar. Verifique a conexão.";S.ag.erro=1;render()});
 };
 window.feitoAg=function(id){
   var s=S.snap;if(!s)return;var ts=Date.now();S.env["ag|"+id]=ts;render();
-  put("pedidos/"+s.data+"/ag"+ts+"f"+Math.random().toString(36).slice(2,6),{k:"ag",op:"feito",id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env["ag|"+id];S.erro="Não consegui enviar.";render()});
+  put("pedidos/"+(function(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)})(new Date())+"/ag"+ts+"f"+Math.random().toString(36).slice(2,6),{k:"ag",op:"feito",id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env["ag|"+id];S.erro="Não consegui enviar.";render()});
 };
 function renderAgenda(s){
   var a=S.ag,h='<div class="card"><b>Novo aviso / compromisso</b>'+
@@ -169,7 +169,7 @@ window.marcar=function(k,id){
   var s=S.snap;if(!s)return;
   var ts=Date.now(),pid=k+"_"+String(id).replace(/[^A-Za-z0-9_-]/g,"-")+"_"+ts;
   S.env[k+"|"+id]=ts;if(navigator.vibrate)navigator.vibrate(40);render();
-  put("pedidos/"+s.data+"/"+pid,{k:k,id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env[k+"|"+id];S.erro="Não consegui enviar. Verifique a internet.";render()});
+  put("pedidos/"+(function(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)})(new Date())+"/"+pid,{k:k,id:id,fid:S.func||"",ts:ts}).catch(function(){delete S.env[k+"|"+id];S.erro="Não consegui enviar. Verifique a internet.";render()});
 };
 
 function abas(){

@@ -63,6 +63,15 @@ def link_lider(cfg):
     return "%s#u=%s&t=%s" % (base.split("#")[0], url, cod)
 
 
+def link_entregas(cfg):
+    """Página de agendar entregas (funciona no iPhone e no Android, pela internet, sem instalar)."""
+    l = link_lider(cfg)
+    if not l:
+        return ""
+    base, _, resto = l.partition("#")
+    return base.rsplit("/", 1)[0] + "/entregas.html#" + resto
+
+
 def _req(metodo, url, dados=None, timeout=15):
     corpo = None if dados is None else json.dumps(dados, ensure_ascii=False).encode("utf-8")
     r = urllib.request.Request(url, data=corpo, method=metodo, headers={"Content-Type": "application/json; charset=utf-8"})
@@ -258,6 +267,12 @@ class Nuvem:
         ped = _req("GET", "%s/pedidos/%s.json" % (base, dia)) or {}
         if ped and self._novo("pedidos", ped):
             self.cmd_q.put(("pedidos", dia, ped))
+        if self.ciclos % 6 == 1:            # pedidos de agenda feitos enquanto este computador estava desligado
+            for volta in range(1, 8):
+                d = time.strftime("%Y-%m-%d", time.localtime(time.time() - volta * 86400))
+                antigo = _req("GET", "%s/pedidos/%s.json" % (base, d)) or {}
+                if antigo and self._novo("pedidos" + d, antigo):
+                    self.cmd_q.put(("pedidos", d, antigo))
         val = _req("GET", "%s/validacoes/%s.json" % (base, dia)) or {}
         novas = {k: v for k, v in val.items() if isinstance(v, dict) and self.visto.get(k) != v.get("ts")}
         if novas:

@@ -67,3 +67,9 @@ VERSÃO 14 - VÁRIOS COMPUTADORES PELO PIN, IMPRESSÃO AUTOMÁTICA
 - Horário da entrega: continuam os horários prontos e há a opção "Outro horário (digitar)" para um horário específico.
 - A Agenda e as entregas aparecem em roxo para destacar.
 - Ao atualizar, feche o programa antigo (ícone da bandeja > Sair) antes de abrir o novo.
+
+VERSÃO 16 - AGENDAR PELO iPHONE (SITE) E COM O COMPUTADOR DESLIGADO
+- Configurações > Internet (celular do líder): "Copiar link das entregas". Mande o link por WhatsApp para suas patroas/vendedores.
+- No iPhone: abra o link no Safari > Compartilhar > Adicionar à Tela de Início. Funciona de qualquer lugar, sem app e sem pagar nada.
+- Se o computador estiver desligado, o pedido fica guardado online (por até 7 dias) e entra na Agenda e IMPRIME assim que o programa abrir.
+- Quem tem o link consegue agendar: não divulgue em lugares públicos.

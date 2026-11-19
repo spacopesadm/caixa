@@ -446,6 +446,23 @@ def abrir(app):
             webbrowser.open(link)
         ttk.Button(t9, text="Copiar link", command=copiar_link).grid(row=7, column=0, sticky="w", pady=(6, 0))
         ttk.Button(t9, text="Abrir a página aqui", command=abrir_link).grid(row=7, column=1, sticky="w", pady=(6, 0), padx=8)
+        link_e = _nv.link_entregas(cfg) if _nv else ""
+        ttk.Label(t9, text="Agendar entregas pelo iPhone ou Android (sem instalar)", font=(FONT, 11, "bold")).grid(row=20, column=0, columnspan=4, sticky="w", pady=(16, 2))
+        ttk.Label(t9, text="Mande este link por WhatsApp para quem precisa cadastrar entrega ou condicional. No iPhone: abra no Safari > botão "
+                           "Compartilhar > Adicionar à Tela de Início. Funciona de qualquer lugar. Se o computador estiver desligado, o pedido fica guardado "
+                           "e entra na Agenda (e imprime) assim que o programa abrir. Quem tem o link consegue agendar: não divulgue.",
+                  foreground=GREY, wraplength=480, justify="left").grid(row=21, column=0, columnspan=3, sticky="nw")
+        ee = ttk.Entry(t9, width=60)
+        ee.insert(0, link_e)
+        ee.configure(state="readonly")
+        ee.grid(row=22, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+        def copiar_e():
+            w.clipboard_clear()
+            w.clipboard_append(link_e)
+            w.update()
+            res_nv.set("Link das entregas copiado. Mande pelo WhatsApp.")
+        ttk.Button(t9, text="Copiar link das entregas", command=copiar_e).grid(row=23, column=0, sticky="w", pady=(6, 0))
         try:
             import base64
             import io

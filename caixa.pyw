@@ -1091,6 +1091,19 @@ class App:
 
     def on_pedidos(self, dia, ped):
         if dia != self.state["date"]:
+            # pedidos de agenda feitos de dias em que este computador estava desligado (celular/iPhone pela internet)
+            try:
+                idade = (dt.date.today() - dt.datetime.strptime(dia, "%Y-%m-%d").date()).days
+            except ValueError:
+                return
+            if not 0 < idade <= 7:
+                return
+            for pid, p in sorted(ped.items(), key=lambda kv: (kv[1] or {}).get("ts", 0) if isinstance(kv[1], dict) else 0):
+                if isinstance(p, dict) and p.get("k") == "ag":
+                    try:
+                        self.aplicar_pedido(dict(p, pid=pid, atrasado=True))
+                    except Exception:
+                        log("pedido antigo: " + traceback.format_exc())
             return
         vistos = self.state.setdefault("pedidos_vistos", [])
         for pid, p in sorted(ped.items(), key=lambda kv: (kv[1] or {}).get("ts", 0) if isinstance(kv[1], dict) else 0):
@@ -2357,7 +2370,7 @@ class App:
         self.sync_soon()
         self.ag_atualizar_janela()
         if p.get("op") not in ("feito", "apagar"):
-            self.auto_imprimir(it)
+            self.auto_imprimir(it, recente=False)       # imprime mesmo que o pedido tenha chegado com o computador desligado
         return True
 
     def entregas_cfg(self):

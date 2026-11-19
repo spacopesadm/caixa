@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agendar entregas</title>
 <link rel="icon" href="icone.png" type="image/png">
+<link rel="apple-touch-icon" href="icone.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Entregas">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1B2433">
 <style>
 :root{--bg:#F3F5F8;--card:#fff;--ink:#1B2433;--mut:#5B6878;--line:#E1E6ED;--ok:#147D56;--okbg:#E4F4EC;--warn:#B8600A;--warnbg:#FDF0DE;--bad:#C4262E;--badbg:#FCE7E8;--acc:#B8975A;--blue:#2347D6}
@@ -189,19 +193,19 @@ function enviar(){
   guardar("ev_vend",f.vendedor);
   var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x");
   var b=document.getElementById("b_enviar");b.disabled=true;
-  put("pedidos/"+s.data+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
+  put("pedidos/"+iso(new Date())+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
     b.disabled=false;
     ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det","f_esp"].forEach(function(id){document.getElementById(id).value=""});
     document.getElementById("i_bairro").innerHTML="";document.getElementById("sug").innerHTML="";
     msg("Agendado! Aparece na lista em alguns segundos.",false);
     S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:f.bairro,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
     infoJanela();desenhaLista();
-  }).catch(function(){b.disabled=false;msg("Não consegui enviar. Verifique o Wi-Fi e tente de novo.",true)});
+  }).catch(function(){b.disabled=false;msg("Não consegui enviar. Verifique a internet e tente de novo.",true)});
 }
 window.cancelar=function(id){
   var s=S.snap;if(!s||!confirm("Cancelar este agendamento?"))return;
   var ts=Date.now();S.env["x|"+id]=1;desenhaLista();
-  put("pedidos/"+s.data+"/ag"+ts+"x"+Math.random().toString(36).slice(2,6),{k:"ag",op:"apagar",id:id,ts:ts}).catch(function(){delete S.env["x|"+id];desenhaLista()});
+  put("pedidos/"+iso(new Date())+"/ag"+ts+"x"+Math.random().toString(36).slice(2,6),{k:"ag",op:"apagar",id:id,ts:ts}).catch(function(){delete S.env["x|"+id];desenhaLista()});
 };
 
 // ---------- lista (atualiza sozinha)
@@ -230,11 +234,11 @@ function atualizaLista(){
 function carregar(){
   return get("meta").then(function(m){return get("dias/"+((m&&m.ultimo)||iso(new Date())))}).then(function(snap){
     S.snap=snap;S.erro="";
-    if(!snap){if(!S.pronto)$.innerHTML='<p class="empty">O caixa ainda não enviou dados. O programa do caixa precisa estar aberto.</p>';return}
+    if(!snap){if(!S.pronto)$.innerHTML='<p class="empty">O caixa ainda não enviou dados. Abra o programa do caixa uma vez no computador.</p>';return}
     if(!S.pronto)montarForm();
     atualizaLista();
   }).catch(function(){
-    S.erro="Sem conexão com o caixa. Confira se o celular está no Wi-Fi da loja.";
+    S.erro="Sem internet ou link incorreto. Confira a conexão e tente de novo.";
     if(!S.pronto)$.innerHTML='<p class="empty">'+esc(S.erro)+'</p>';
   });
 }
