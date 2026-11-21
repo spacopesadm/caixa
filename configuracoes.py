@@ -103,14 +103,32 @@ def abrir(app):
     except Exception:
         pass
 
+    # a barra com Salvar/Cancelar é empacotada ANTES das abas, no rodapé: assim ela nunca some, mesmo com abas altas
+    bar = ttk.Frame(w, padding=(12, 0, 12, 12))
+    bar.pack(side="bottom", fill="x")
     nb = ttk.Notebook(w)
-    nb.pack(fill="both", expand=True, padx=12, pady=(12, 6))
+    nb.pack(side="top", fill="both", expand=True, padx=12, pady=(12, 6))
     V = {}
 
     def tab(titulo):
-        f = ttk.Frame(nb, padding=16)
+        """Aba com rolagem: se o conteúdo for maior que a janela, aparece a barra de rolagem."""
+        ext = ttk.Frame(nb)
+        cv = tk.Canvas(ext, highlightthickness=0, bg=ttk.Style(w).lookup("TFrame", "background") or "#F5F6F8", height=200)
+        sb = ttk.Scrollbar(ext, orient="vertical", command=cv.yview)
+        f = ttk.Frame(cv, padding=16)
         f.columnconfigure(0, weight=1)
-        nb.add(f, text=titulo)
+        jan = cv.create_window((0, 0), window=f, anchor="nw")
+        cv.configure(yscrollcommand=sb.set)
+        cv.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        f.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv.bind("<Configure>", lambda e: cv.itemconfigure(jan, width=e.width))
+
+        def roda(e):
+            if str(nb.select()) == str(ext) and cv.bbox("all") and cv.bbox("all")[3] > cv.winfo_height():
+                cv.yview_scroll(-1 * (e.delta // 120) if e.delta else (1 if e.num == 5 else -1), "units")
+        w.bind_all("<MouseWheel>", roda, add="+")
+        nb.add(ext, text=titulo)
         return f
 
     def spin(parent, r, texto, chave, valor, lo, hi, dica=""):
@@ -777,8 +795,6 @@ def abrir(app):
         app.settings_win = None
 
     w.protocol("WM_DELETE_WINDOW", fechar)
-    bar = ttk.Frame(w, padding=(12, 0, 12, 12))
-    bar.pack(fill="x")
     ttk.Button(bar, text="Salvar", command=salvar).pack(side="right")
     ttk.Button(bar, text="Cancelar", command=fechar).pack(side="right", padx=8)
     ttk.Button(bar, text="Restaurar padrões", command=restaurar).pack(side="left")
