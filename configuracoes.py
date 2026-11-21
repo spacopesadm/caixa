@@ -453,7 +453,7 @@ def abrir(app):
                            "e entra na Agenda (e imprime) assim que o programa abrir. Quem tem o link consegue agendar: não divulgue.",
                   foreground=GREY, wraplength=480, justify="left").grid(row=21, column=0, columnspan=3, sticky="nw")
         ee = ttk.Entry(t9, width=60)
-        ee.insert(0, link_e)
+        ee.insert(0, link_e or "(indisponível: gere o link no computador principal, depois de criar/entrar na loja online)")
         ee.configure(state="readonly")
         ee.grid(row=22, column=0, columnspan=3, sticky="w", pady=(8, 0))
 

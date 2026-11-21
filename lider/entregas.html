@@ -237,14 +237,16 @@ function carregar(){
     if(!snap){if(!S.pronto)$.innerHTML='<p class="empty">O caixa ainda não enviou dados. Abra o programa do caixa uma vez no computador.</p>';return}
     if(!S.pronto)montarForm();
     atualizaLista();
-  }).catch(function(){
-    S.erro="Sem internet ou link incorreto. Confira a conexão e tente de novo.";
+  }).catch(function(e){
+    var lan=/^http:\/\//.test(S.u)||/^https?:\/\/(192\.168|10\.|172\.)/.test(S.u);
+    S.erro=lan?"Este link é da rede Wi-Fi da loja (endereço "+S.u.replace(/^https?:\/\//,"")+") e não funciona fora dela. Peça o link das entregas na aba Internet do programa do caixa (começa com https://spacopesadm.github.io/caixa/entregas.html#u=https://...)."
+      :"Não consegui falar com o banco online ("+S.u.replace(/^https?:\/\//,"").slice(0,40)+", erro "+((e&&e.message)||"rede")+"). Confira a internet ou peça um link novo.";
     if(!S.pronto)$.innerHTML='<p class="empty">'+esc(S.erro)+'</p>';
   });
 }
 function ciclo(){carregar().then(function(){setTimeout(ciclo,6000)})}
 
-if(!S.u||!S.t){$.innerHTML='<p class="empty">Este aparelho ainda não está conectado ao caixa. Peça o PIN ao gerente e abra o app.</p>'}
+if(!S.u||!S.t){$.innerHTML='<p class="empty">Este aparelho ainda não está conectado ao caixa. Abra o link completo que o gerente mandou (o que tem #u=... no final).</p>'}
 else fetch("bairros.json",{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){
   S.regioes=j.regioes||{};S.todos=j.bairros||[];
   S.todos.forEach(function(b){[b.bairro].concat(b.alias||[]).forEach(function(n){S.bairros[norm(n)]=b})});ciclo()}).catch(function(){ciclo()});

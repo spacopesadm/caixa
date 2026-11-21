@@ -65,6 +65,8 @@ def link_lider(cfg):
 
 def link_entregas(cfg):
     """Página de agendar entregas (funciona no iPhone e no Android, pela internet, sem instalar)."""
+    if cfg.get("modo_cliente") or not str(cfg.get("nuvem_url") or "").startswith("https://"):
+        return ""            # só o computador principal, ligado à loja online, gera um link que funciona fora do Wi-Fi
     l = link_lider(cfg)
     if not l:
         return ""
