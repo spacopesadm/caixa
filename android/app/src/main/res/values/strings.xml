@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_desc">Lista das próximas entregas e lembretes agendados no caixa. Toque no topo para atualizar.</string>
+</resources>

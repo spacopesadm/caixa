@@ -73,3 +73,8 @@ VERSÃO 16 - AGENDAR PELO iPHONE (SITE) E COM O COMPUTADOR DESLIGADO
 - No iPhone: abra o link no Safari > Compartilhar > Adicionar à Tela de Início. Funciona de qualquer lugar, sem app e sem pagar nada.
 - Se o computador estiver desligado, o pedido fica guardado online (por até 7 dias) e entra na Agenda e IMPRIME assim que o programa abrir.
 - Quem tem o link consegue agendar: não divulgue em lugares públicos.
+
+VERSÃO 21 - WIDGET NO ANDROID E LEMBRETES NO CELULAR
+- App "Entregas Spaço Pés" (e Painel do Caixa): segure o dedo na tela inicial do Android > Widgets > "Entregas e agenda". Mostra a lista das próximas entregas/lembretes. Toque no topo para atualizar. Atualiza sozinho a cada 30 min e ao abrir o app (só no Wi-Fi da loja; fora dela mostra a última lista guardada).
+- App das entregas: abas "Agendar entrega" e "Lembretes". O lembrete toca neste celular na hora marcada, mesmo com o app fechado. Use "Testar: avisar daqui a 1 minuto" para conferir.
+- No iPhone/navegador a aba Lembretes avisa pelo caixa (marque "Avisar também no computador do caixa").

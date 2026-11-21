@@ -43,7 +43,7 @@ class MainActivity : Activity() {
         raiz = FrameLayout(this)
         setContentView(raiz)
         title = if (BuildConfig.VENDEDOR) "Entregas Spaço Pés" else "Painel do Caixa"
-        if (!BuildConfig.VENDEDOR && Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 33) {
             try { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1) } catch (e: Exception) { }
         }
         if (Dados.pareado(this)) mostrarWeb() else mostrarPareamento()
@@ -51,6 +51,10 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (Dados.pareado(this)) {
+            val app = applicationContext
+            Thread { try { if (DadosAgenda.atualizar(app)) EntregasWidget.redesenhar(app) } catch (e: Exception) { } }.start()
+        }
         if (!BuildConfig.VENDEDOR && Dados.pareado(this)) {
             try { AvisosService.iniciar(this) } catch (e: Exception) { }
         }
@@ -168,6 +172,7 @@ class MainActivity : Activity() {
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
         s.cacheMode = WebSettings.LOAD_NO_CACHE
+        w.addJavascriptInterface(PonteLembretes(applicationContext), "AndroidLembretes")
         w.webViewClient = object : WebViewClient() {
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) falhou()

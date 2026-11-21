@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lembretes</title>
+<link rel="icon" href="icone.png" type="image/png">
+<link rel="apple-touch-icon" href="icone.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lembretes">
+<meta name="theme-color" content="#1B2433">
+<style>
+:root{--bg:#F3F5F8;--card:#fff;--ink:#1B2433;--mut:#5B6878;--line:#E1E6ED;--ok:#147D56;--okbg:#E4F4EC;--warn:#B8600A;--warnbg:#FDF0DE;--bad:#C4262E;--badbg:#FCE7E8;--acc:#B8975A;--blue:#2347D6}
+@media (prefers-color-scheme:dark){:root{--bg:#10141B;--card:#1A212C;--ink:#EEF1F6;--mut:#9AA6B6;--line:#2A3342;--okbg:#12382A;--warnbg:#3A2A12;--badbg:#3F1A1D}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#1B2433;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
+header img{width:36px;height:36px;border-radius:50%}
+header b{font-size:17px}
+main{max-width:640px;margin:0 auto;padding:12px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+label{display:block;margin:12px 0 4px;font-size:14px;color:var(--mut)}
+label i{color:var(--bad);font-style:normal}
+input,select,textarea{width:100%;font:inherit;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.row{display:flex;gap:10px}.row>div{flex:1;min-width:0}
+button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer}
+.go{background:var(--acc);color:#fff;font-weight:700;width:100%;margin-top:16px;font-size:17px}
+.no{background:var(--badbg);color:var(--bad);padding:8px 12px;font-size:14px}
+.info{border-radius:10px;padding:9px 11px;margin-top:8px;font-size:14px}
+.i-ok{background:var(--okbg);color:var(--ok)}.i-warn{background:var(--warnbg);color:var(--warn)}.i-bad{background:var(--badbg);color:var(--bad)}.i-n{background:var(--bg);color:var(--mut)}
+.sub{font-size:13px;color:var(--mut)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--bg);color:var(--mut)}
+h2{font-size:15px;margin:18px 2px 6px}
+.empty{color:var(--mut);text-align:center;padding:14px}
+.dia{font-weight:700;margin:16px 2px 4px;font-size:14px;color:var(--mut)}
+.jan{font-weight:700;margin:8px 2px 2px;font-size:14px}
+.nav{display:flex;background:#1B2433;padding:0 8px 8px;gap:8px}.nav a{flex:1;text-align:center;padding:9px;border-radius:10px;color:#cfd6e2;text-decoration:none;font-weight:700;font-size:15px;background:#26324A}.nav a.on{background:var(--acc);color:#fff}
+.item{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+</style>
+</head>
+<body>
+<header><img src="icone.png" alt=""><b>Lembretes</b></header>
+<div class="nav"><a href="entregas.html">Agendar entrega</a><a href="lembretes.html" class="on">Lembretes</a></div>
+<main id="app"></main>
+<script>
+(function(){
+"use strict";
+var A=window.AndroidLembretes||null;           // existe só dentro do app Android (avisa no celular, mesmo com o app fechado)
+var S={u:"",t:"",snap:null,msg:"",erro:0};
+function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function ler(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function pad(n){return ("0"+n).slice(-2)}
+function iso(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function brData(s){var p=s.split("-");return p[2]+"/"+p[1]}
+(function(){
+  var h=location.hash.replace(/^#/,"");
+  if(h){var p={};h.split("&").forEach(function(x){var i=x.indexOf("=");if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1))});
+    if(p.u&&p.t){guardar("cx_u",p.u);guardar("cx_t",p.t);history.replaceState(null,"",location.pathname+location.search)}}
+  S.u=ler("cx_u").replace(/\/+$/,"");S.t=ler("cx_t");
+})();
+function url(c){return S.u+"/lojas/"+encodeURIComponent(S.t)+"/"+c+".json"}
+function get(c){return fetch(url(c),{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function put(c,d){return fetch(url(c),{method:"PUT",body:JSON.stringify(d)}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+var conectado=function(){return !!(S.u&&S.t)};
+var $=document.getElementById("app");
+var $v=function(id){var e=document.getElementById(id);return e?e.value:""};
+
+function lista(){
+  if(A){try{return JSON.parse(A.lista()||"[]")}catch(e){return []}}
+  var a=(S.snap&&S.snap.agenda)||[],hoje=iso(new Date());
+  return a.filter(function(x){return x.tipo==="Lembrete"&&x.data>=hoje&&!x.feito}).map(function(x){
+    return {id:x.id,quando:new Date(x.data+"T"+(x.hora||"00:00")).getTime(),titulo:x.titulo,texto:x.detalhe||"",caixa:1}}).sort(function(p,q){return p.quando-q.quando});
+}
+function desenhaLista(){
+  var el=document.getElementById("lista");if(!el)return;
+  var its=lista(),h="<h2>Lembretes agendados</h2>";
+  if(!its.length)h+='<p class="empty">Nenhum lembrete agendado.</p>';
+  its.forEach(function(x){
+    var d=new Date(x.quando);
+    h+='<div class="card" style="margin:4px 0"><div class="item"><div><b>'+esc(x.titulo)+'</b><div class="sub">'+brData(iso(d))+" às "+pad(d.getHours())+":"+pad(d.getMinutes())+
+      (x.antes?" (avisa "+x.antes+" min antes)":"")+(x.caixa?" · no caixa":"")+'</div>'+(x.texto?'<div class="sub">'+esc(x.texto)+'</div>':"")+
+      '</div><button class="no" onclick="apagarL(\''+esc(x.id)+'\')">Apagar</button></div></div>';
+  });
+  el.innerHTML=h;
+}
+window.apagarL=function(id){
+  if(!confirm("Apagar este lembrete?"))return;
+  if(A){try{A.cancelar(id)}catch(e){}}
+  var caixaId=ler("lem_cx_"+id)||(!A?id:"");
+  if(caixaId&&conectado()){var ts=Date.now();put("pedidos/"+iso(new Date())+"/ag"+ts+"x"+Math.random().toString(36).slice(2,6),{k:"ag",op:"apagar",id:caixaId,ts:ts}).catch(function(){})}
+  if(!A&&S.snap&&S.snap.agenda)S.snap.agenda=S.snap.agenda.filter(function(x){return x.id!==id});
+  desenhaLista();
+};
+function msg(t,erro){S.msg=t;S.erro=erro?1:0;var e=document.getElementById("msg");if(e){e.style.display="block";e.className="info "+(erro?"i-bad":"i-ok");e.textContent=t}}
+window.agendarL=function(teste){
+  var titulo=$v("l_titulo").trim(),det=$v("l_det").trim(),dia=$v("l_dia"),hora=$v("l_hora"),antes=parseInt($v("l_antes"),10)||0,noCaixa=document.getElementById("l_cx")&&document.getElementById("l_cx").checked;
+  var quando;
+  if(teste){quando=Date.now()+60000;titulo=titulo||"Teste de lembrete";dia=iso(new Date(quando));hora=pad(new Date(quando).getHours())+":"+pad(new Date(quando).getMinutes());antes=0;noCaixa=false}
+  else{
+    if(!titulo){msg("Escreva o que é o lembrete (ex.: Ligar para a Maria).",1);return}
+    if(!dia||!hora){msg("Escolha o dia e a hora.",1);return}
+    quando=new Date(dia+"T"+hora).getTime()-antes*60000;
+    if(!(quando>Date.now())){msg("Esse horário (com o aviso antecipado) já passou.",1);return}
+  }
+  if(!A&&!noCaixa){msg("Neste aparelho o aviso só funciona pelo caixa: marque \"Avisar também no computador do caixa\". No celular Android, instale o app Entregas Spaço Pés para receber o aviso no celular.",1);return}
+  var id="l"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x"),iid="a"+pid.replace(/[^A-Za-z0-9]/g,"").slice(-9);
+  function final(){
+    if(A){
+      try{var r=A.agendar(id,String(quando),titulo,det||("Lembrete das "+hora))}catch(e){msg("Não consegui agendar o aviso no celular.",1);return}
+      if(r&&r!=="ok"){msg(String(r),1);return}
+    }
+    if(noCaixa)guardar("lem_cx_"+id,iid);
+    msg(teste?"Pronto! Em 1 minuto o celular deve avisar (pode fechar o app).":"Lembrete agendado!"+(A?" O celular avisa na hora marcada.":" Aparece no caixa na hora."),0);
+    if(!teste){["l_titulo","l_det"].forEach(function(k){document.getElementById(k).value=""})}
+    desenhaLista();
+  }
+  if(noCaixa&&conectado()){
+    put("pedidos/"+iso(new Date())+"/"+pid,{k:"ag",op:"add",ts:ts,item:{tipo:"Lembrete",data:dia,hora:hora,antes:antes,titulo:titulo,detalhe:det}}).then(function(){
+      if(!A&&S.snap){(S.snap.agenda=S.snap.agenda||[]).push({id:iid,data:dia,hora:hora,tipo:"Lembrete",titulo:titulo,detalhe:det})}
+      final()}).catch(function(){msg("Não consegui enviar para o caixa. Verifique a internet.",1)});
+  }else final();
+};
+function montar(){
+  var amanha=new Date(Date.now()+86400000);
+  $.innerHTML='<div class="card"><label>O que é o lembrete? <i>*</i></label><input id="l_titulo" maxlength="120" placeholder="Ex.: Ligar para a Maria sobre o condicional">'+
+    '<label>Detalhes (opcional)</label><textarea id="l_det" rows="2" maxlength="300"></textarea>'+
+    '<div class="row"><div><label>Dia <i>*</i></label><input id="l_dia" type="date" value="'+iso(new Date())+'" min="'+iso(new Date())+'"></div>'+
+    '<div><label>Hora <i>*</i></label><input id="l_hora" type="time"></div></div>'+
+    '<label>Avisar antes</label><select id="l_antes"><option value="0">Na hora</option><option value="5">5 minutos antes</option><option value="15">15 minutos antes</option><option value="30">30 minutos antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select>'+
+    (conectado()?'<label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input id="l_cx" type="checkbox" style="width:auto"> Avisar também no computador do caixa (aparece na Agenda)</label>':"")+
+    '<div id="msg" class="info"></div>'+
+    '<button class="go" onclick="agendarL(false)">Agendar lembrete</button>'+
+    (A?'<button class="go" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:15px" onclick="agendarL(true)">Testar: avisar daqui a 1 minuto</button>':"")+
+    '</div>'+(A?'<p class="sub">O aviso toca neste celular na hora marcada, mesmo com o app fechado. Na primeira vez, permita as notificações e os alarmes.</p>':
+      '<p class="sub">Dica: no celular Android com o app Entregas Spaço Pés, o aviso toca no próprio celular. Aqui, o lembrete aparece e avisa no computador do caixa.</p>')+'<div id="lista"></div>';
+  document.getElementById("msg").style.display="none";
+  desenhaLista();
+}
+montar();
+function ciclo(){if(!conectado()||A){return}get("meta").then(function(m){return get("dias/"+((m&&m.ultimo)||iso(new Date())))}).then(function(sn){S.snap=sn;desenhaLista()}).catch(function(){}).then(function(){setTimeout(ciclo,8000)})}
+ciclo();
+})();
+</script>
+</body>
+</html>

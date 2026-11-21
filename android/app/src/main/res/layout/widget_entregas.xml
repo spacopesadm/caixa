@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_fundo">
+
+    <LinearLayout
+        android:id="@+id/w_topo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="10dp"
+        android:background="@drawable/widget_topo">
+
+        <TextView
+            android:id="@+id/w_titulo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Entregas e agenda"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/w_atual"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#E9D5FF"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/w_lista"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/w_vazio"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="12dp"
+            android:textColor="#6B7280"
+            android:textSize="14sp" />
+    </FrameLayout>
+</LinearLayout>
