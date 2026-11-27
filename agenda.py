@@ -107,12 +107,25 @@ def da_data(lista, iso):
     return [it for it in vivos(lista) if it["data"] == iso]
 
 
-def janela_inicio(j):
+QUALQUER = "Qualquer horário"      # entrega sem horário marcado: o cliente aceita receber a qualquer hora do dia
+
+
+def e_qualquer(j):
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(j or "")).encode("ascii", "ignore").decode().lower().replace(" ", "")
+    return t.startswith("qualquer") or t in ("livre", "diatodo", "indiferente")
+
+
+def janela_inicio(j, padrao="09:00"):
+    if e_qualquer(j):
+        return parse_hora(padrao)
     return parse_hora((j or "").split("-")[0])
 
 
 def parse_janela(j):
-    """'09:00-11:00' (ou '9h-11h') -> '09:00-11:00'."""
+    """'09:00-11:00' (ou '9h-11h') -> '09:00-11:00'. 'Qualquer horário' também vale."""
+    if e_qualquer(j):
+        return QUALQUER
     partes = (j or "").replace(" ", "").replace("às", "-").replace("as", "-").split("-")
     if len(partes) != 2:
         raise ValueError("Horário inválido. Use por exemplo 09:00-11:00.")

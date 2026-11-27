@@ -94,16 +94,18 @@ window.apagarL=function(id){
 };
 function msg(t,erro){S.msg=t;S.erro=erro?1:0;var e=document.getElementById("msg");if(e){e.style.display="block";e.className="info "+(erro?"i-bad":"i-ok");e.textContent=t}}
 window.agendarL=function(teste){
-  var titulo=$v("l_titulo").trim(),det=$v("l_det").trim(),dia=$v("l_dia"),hora=$v("l_hora"),antes=parseInt($v("l_antes"),10)||0,noCaixa=document.getElementById("l_cx")&&document.getElementById("l_cx").checked;
+  var titulo=$v("l_titulo").trim(),det=$v("l_det").trim(),dia=$v("l_dia"),hora=$v("l_hora"),antes=parseInt($v("l_antes"),10)||0,noCaixa=conectado(),quem=$v("l_vend").trim();
   var quando;
-  if(teste){quando=Date.now()+60000;titulo=titulo||"Teste de lembrete";dia=iso(new Date(quando));hora=pad(new Date(quando).getHours())+":"+pad(new Date(quando).getMinutes());antes=0;noCaixa=false}
+  if(teste){quando=Date.now()+60000;titulo=titulo||"Teste de lembrete";dia=iso(new Date(quando));hora=pad(new Date(quando).getHours())+":"+pad(new Date(quando).getMinutes());antes=0;noCaixa=false;quem=""}
   else{
     if(!titulo){msg("Escreva o que é o lembrete (ex.: Ligar para a Maria).",1);return}
     if(!dia||!hora){msg("Escolha o dia e a hora.",1);return}
     quando=new Date(dia+"T"+hora).getTime()-antes*60000;
     if(!(quando>Date.now())){msg("Esse horário (com o aviso antecipado) já passou.",1);return}
   }
-  if(!A&&!noCaixa){msg("Neste aparelho o aviso só funciona pelo caixa: marque \"Avisar também no computador do caixa\". No celular Android, instale o app Entregas Spaço Pés para receber o aviso no celular.",1);return}
+  if(!A&&!noCaixa){msg("Este aparelho não está conectado ao caixa. Abra o link completo das entregas que o gerente mandou.",1);return}
+  if(quem)guardar("ev_vend",quem);
+  if(quem)det=(det?det+"\n":"")+"Lembrete de "+quem;
   var id="l"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x"),iid="a"+pid.replace(/[^A-Za-z0-9]/g,"").slice(-9);
   function final(){
@@ -112,14 +114,14 @@ window.agendarL=function(teste){
       if(r&&r!=="ok"){msg(String(r),1);return}
     }
     if(noCaixa)guardar("lem_cx_"+id,iid);
-    msg(teste?"Pronto! Em 1 minuto o celular deve avisar (pode fechar o app).":"Lembrete agendado!"+(A?" O celular avisa na hora marcada.":" Aparece no caixa na hora."),0);
+    msg(teste?"Pronto! Em 1 minuto o celular deve avisar (pode fechar o app).":"Lembrete agendado!"+(A?" O celular avisa na hora marcada":" O caixa avisa na hora marcada")+(noCaixa&&A?" e o caixa também.":"."),0);
     if(!teste){["l_titulo","l_det"].forEach(function(k){document.getElementById(k).value=""})}
     desenhaLista();
   }
   if(noCaixa&&conectado()){
     put("pedidos/"+iso(new Date())+"/"+pid,{k:"ag",op:"add",ts:ts,item:{tipo:"Lembrete",data:dia,hora:hora,antes:antes,titulo:titulo,detalhe:det}}).then(function(){
       if(!A&&S.snap){(S.snap.agenda=S.snap.agenda||[]).push({id:iid,data:dia,hora:hora,tipo:"Lembrete",titulo:titulo,detalhe:det})}
-      final()}).catch(function(){msg("Não consegui enviar para o caixa. Verifique a internet.",1)});
+      final()}).catch(function(){if(A){final();msg("Agendado só neste celular (não consegui falar com o caixa agora).",0)}else msg("Não consegui enviar para o caixa. Verifique a internet.",1)});
   }else final();
 };
 function montar(){
@@ -129,7 +131,8 @@ function montar(){
     '<div class="row"><div><label>Dia <i>*</i></label><input id="l_dia" type="date" value="'+iso(new Date())+'" min="'+iso(new Date())+'"></div>'+
     '<div><label>Hora <i>*</i></label><input id="l_hora" type="time"></div></div>'+
     '<label>Avisar antes</label><select id="l_antes"><option value="0">Na hora</option><option value="5">5 minutos antes</option><option value="15">15 minutos antes</option><option value="30">30 minutos antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select>'+
-    (conectado()?'<label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input id="l_cx" type="checkbox" style="width:auto"> Avisar também no computador do caixa (aparece na Agenda)</label>':"")+
+    '<label>Seu nome (vendedor/a)</label><input id="l_vend" autocomplete="off" value="'+esc(ler("ev_vend"))+'" placeholder="Quem está cadastrando">'+
+    '<p class="sub" style="margin:8px 2px 0">'+(conectado()?"O lembrete avisa sempre no computador do caixa"+(A?" e neste celular.":"."):(A?"Sem conexão com o caixa: avisa só neste celular.":""))+'</p>'+
     '<div id="msg" class="info"></div>'+
     '<button class="go" onclick="agendarL(false)">Agendar lembrete</button>'+
     (A?'<button class="go" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:15px" onclick="agendarL(true)">Testar: avisar daqui a 1 minuto</button>':"")+

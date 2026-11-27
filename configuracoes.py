@@ -542,6 +542,35 @@ def abrir(app):
     ttk.Checkbutton(t11, text="Imprimir o endereço automaticamente quando o vendedor agendar (marque só no computador da impressora)",
                     variable=V["imp_auto"]).grid(row=8, column=0, columnspan=3, sticky="w", pady=(12, 0))
 
+    # ---------------- Vendedores e bairros guardados
+    t12 = tab("Vendedores e bairros")
+    ttk.Label(t12, text="Vendedores e bairros guardados", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
+    ttk.Label(t12, text="Os nomes de vendedores e os bairros novos digitados nos agendamentos são guardados sozinhos e sugeridos da próxima vez. "
+                        "Aqui você corrige, acrescenta ou apaga (um por linha).", foreground=GREY, wraplength=640, justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(2, 8))
+    ttk.Label(t12, text="Vendedores").grid(row=2, column=0, sticky="w")
+    ttk.Label(t12, text="Bairros novos (fora da tabela de rotas)").grid(row=2, column=1, sticky="w", padx=16)
+    tx_vend = tk.Text(t12, height=11, width=28, font=(FONT, 11))
+    tx_vend.grid(row=3, column=0, sticky="nw")
+    _vend = []
+    try:
+        _vend = app.lista_vendedores()
+    except Exception:
+        _vend = list(cfg.get("vendedores_entrega") or [])
+    tx_vend.insert("1.0", "\n".join(_vend))
+    tx_bai = tk.Text(t12, height=11, width=30, font=(FONT, 11))
+    tx_bai.grid(row=3, column=1, sticky="nw", padx=16)
+    tx_bai.insert("1.0", "\n".join(e.get("bairro", "") for e in (cfg.get("bairros_extra") or []) if isinstance(e, dict) and e.get("bairro")))
+    _tab = []
+    try:
+        _tab = [n for n, _b in app.todos_bairros() if _b is not None]
+    except Exception:
+        pass
+    ttk.Label(t12, text="Já estão na tabela de rotas (%d bairros, não precisa digitar):" % len(_tab), foreground=GREY).grid(row=4, column=0, columnspan=3, sticky="w", pady=(10, 2))
+    tx_tab = tk.Text(t12, height=4, width=70, font=(FONT, 9), wrap="word")
+    tx_tab.grid(row=5, column=0, columnspan=3, sticky="we")
+    tx_tab.insert("1.0", ", ".join(_tab))
+    tx_tab.configure(state="disabled")
+
     # ---------------- Celular pelo Wi-Fi da loja
     t10 = tab("Rede da loja (Wi-Fi)")
     ttk.Label(t10, text="Rede da loja: celulares e outros computadores", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
@@ -737,10 +766,24 @@ def abrir(app):
                 jj = _ag.parse_janela(lin)
             except ValueError as ex:
                 raise ValueError("Entregas: %s" % ex)
-            if jj not in jan:
+            if jj not in jan and jj != _ag.QUALQUER:
                 jan.append(jj)
         n["janelas_entrega"] = sorted(jan)
         n["dias_entrega"] = [i for i in range(7) if V["ent_d%d" % i].get()]
+        _vs, _vistos = [], set()
+        for lin in tx_vend.get("1.0", "end").splitlines():
+            lin = " ".join(lin.split())
+            if lin and lin.lower() not in _vistos:
+                _vistos.add(lin.lower())
+                _vs.append(lin)
+        n["vendedores_entrega"] = _vs
+        _bs, _vistos = [], set()
+        for lin in tx_bai.get("1.0", "end").splitlines():
+            lin = " ".join(lin.split())
+            if lin and lin.lower() not in _vistos:
+                _vistos.add(lin.lower())
+                _bs.append({"bairro": lin})
+        n["bairros_extra"] = _bs
         n["entrega_antes"] = _num("Avisar antes (entregas)", V["ent_antes"].get(), 0, 120)
         n["impressora"] = V["imp"].get().strip()
         n["imprimir_auto"] = bool(V["imp_auto"].get())

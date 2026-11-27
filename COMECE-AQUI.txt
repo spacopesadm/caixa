@@ -78,3 +78,9 @@ VERSÃO 21 - WIDGET NO ANDROID E LEMBRETES NO CELULAR
 - App "Entregas Spaço Pés" (e Painel do Caixa): segure o dedo na tela inicial do Android > Widgets > "Entregas e agenda". Mostra a lista das próximas entregas/lembretes. Toque no topo para atualizar. Atualiza sozinho a cada 30 min e ao abrir o app (só no Wi-Fi da loja; fora dela mostra a última lista guardada).
 - App das entregas: abas "Agendar entrega" e "Lembretes". O lembrete toca neste celular na hora marcada, mesmo com o app fechado. Use "Testar: avisar daqui a 1 minuto" para conferir.
 - No iPhone/navegador a aba Lembretes avisa pelo caixa (marque "Avisar também no computador do caixa").
+
+VERSÃO 22
+- Lembretes das vendedoras: sempre avisam no computador do caixa (e no celular de quem cadastrou, no app Android). Campo "Seu nome" no lembrete.
+- Entregas: nova opção "Qualquer horário" (site e Agenda do computador). Aparece no fim do roteiro do dia.
+- Configurações > "Vendedores e bairros": nomes de vendedores e bairros novos ficam guardados sozinhos e podem ser corrigidos ali. O site sugere os bairros guardados.
+- Agenda do computador: formulário de entrega/condicional/troca igual ao do site (vendedor, cliente, telefone, bairro com sugestão, endereço, referência, CEP, horário). Acabou o erro "sem endereço" ao imprimir. Entregas antigas sem endereço: dê 2 cliques e preencha.

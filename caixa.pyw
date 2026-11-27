@@ -118,6 +118,8 @@ DEFAULT_CONFIG = {
     "pin_padrao_v1": False,
     "maquina_id": "",
     "maquina_nome": "",
+    "vendedores_entrega": [],
+    "bairros_extra": [],
     "janelas_entrega": ["09:00-11:00", "12:00-13:00", "15:00-16:00", "18:00-19:00"],
     "dias_entrega": [0, 1, 2, 3, 4],
     "entrega_antes": 15,
@@ -2373,9 +2375,50 @@ class App:
             self.auto_imprimir(it, recente=False)       # imprime mesmo que o pedido tenha chegado com o computador desligado
         return True
 
+    def lista_vendedores(self):
+        """Nomes de vendedores guardados (cadastrados + os que já agendaram), sem repetir."""
+        vistos, out = set(), []
+        for n in list(self.cfg.get("vendedores_entrega") or []) + [f.get("nome", "") for f in self.cfg.get("funcionarios", [])]:
+            n = str(n or "").strip()
+            k = agenda.chave_bairro(n) if agenda else n.lower()
+            if n and k not in vistos:
+                vistos.add(k)
+                out.append(n)
+        return sorted(out, key=lambda x: x.lower())
+
     def entregas_cfg(self):
         return {"janelas": list(self.cfg.get("janelas_entrega") or []), "dias": list(self.cfg.get("dias_entrega") or []),
-                "vendedores": [f["nome"] for f in self.cfg.get("funcionarios", []) if f.get("nome")]}
+                "vendedores": self.lista_vendedores(),
+                "bairros_extra": [dict(e) for e in (self.cfg.get("bairros_extra") or []) if isinstance(e, dict) and e.get("bairro")]}
+
+    def todos_bairros(self):
+        """[(nome, info|None)] da tabela de rotas + bairros guardados (sem região)."""
+        vistos, out = set(), []
+        for b in bairros().values():
+            if b["bairro"] not in vistos:
+                vistos.add(b["bairro"])
+                out.append((b["bairro"], b))
+        for e in self.cfg.get("bairros_extra") or []:
+            if isinstance(e, dict) and e.get("bairro") and e["bairro"] not in vistos:
+                vistos.add(e["bairro"])
+                out.append((e["bairro"], None))
+        return sorted(out, key=lambda x: agenda.chave_bairro(x[0]))
+
+    def aprender_entrega(self, it):
+        """Guarda o vendedor e o bairro novos (que ainda não estavam nas listas) para sugerir da próxima vez."""
+        try:
+            novo = {}
+            v = str(it.get("vendedor") or "").strip()
+            if v and agenda.chave_bairro(v) not in {agenda.chave_bairro(x) for x in self.lista_vendedores()}:
+                novo["vendedores_entrega"] = list(self.cfg.get("vendedores_entrega") or []) + [v]
+            b = str(it.get("bairro") or "").strip()
+            extras = list(self.cfg.get("bairros_extra") or [])
+            if b and agenda.chave_bairro(b) not in bairros() and agenda.chave_bairro(b) not in {agenda.chave_bairro(e.get("bairro", "")) for e in extras if isinstance(e, dict)}:
+                novo["bairros_extra"] = extras + [{"bairro": b}]
+            if novo:
+                self.apply_config(dict(self.cfg, **novo))
+        except Exception:
+            log("aprender_entrega: " + traceback.format_exc())
 
     def item_entrega(self, i, iid=None):
         """Entrega / condicional / troca pedida pelo vendedor. Valida tudo de novo aqui (a página já validou, mas o celular não é de confiança)."""
@@ -2387,7 +2430,7 @@ class App:
         data = agenda.parse_data(pega("data"))
         try:
             janela = agenda.parse_janela(pega("janela"))
-            if janela not in (self.cfg.get("janelas_entrega") or []):
+            if janela != agenda.QUALQUER and janela not in (self.cfg.get("janelas_entrega") or []):
                 janela = agenda.parse_hora(pega("janela").split("-")[0])        # horário fora das janelas: vale como horário específico
         except ValueError:
             janela = agenda.parse_hora(pega("janela"))                         # horário específico (ex.: 14:30)
@@ -2401,10 +2444,12 @@ class App:
         if cep and len(cep) != 8:
             raise ValueError("CEP inválido")
         b = bairros().get(agenda.chave_bairro(pega("bairro")))
+        nome_b = b["bairro"] if b else next((e["bairro"] for e in (self.cfg.get("bairros_extra") or []) if isinstance(e, dict)
+                                             and agenda.chave_bairro(e.get("bairro", "")) == agenda.chave_bairro(pega("bairro"))), pega("bairro"))
         tipo = i["tipo"]
         det = ["Cliente: %s - Tel: %s" % (pega("cliente"), tel_fmt),
                "Endereço: %s" % pega("endereco"),
-               "Bairro: %s%s" % (b["bairro"] if b else pega("bairro"), (" (Região %d, %s, ~%s)" % (b["zona"], b["dist"], b["tempo"])) if b else " (fora da tabela de rotas)")]
+               "Bairro: %s%s" % (nome_b, (" (Região %d, %s, ~%s)" % (b["zona"], b["dist"], b["tempo"])) if b else " (fora da tabela de rotas)")]
         if cep:
             det.append("CEP: %s-%s" % (cep[:5], cep[5:]))
         if pega("referencia"):
@@ -2412,11 +2457,13 @@ class App:
         if pega("detalhe"):
             det.append("Obs.: %s" % pega("detalhe"))
         det.append("Vendedor: %s - Horário: %s" % (pega("vendedor"), janela.replace("-", " às ")))
-        it = agenda.criar(data, agenda.janela_inicio(janela), tipo, "%s - %s (%s)" % (tipo, pega("cliente"), b["bairro"] if b else pega("bairro")), "\n".join(det)[:800],
-                          int(self.cfg.get("entrega_antes", 15) or 0), id_=iid,
-                          extra={"cliente": pega("cliente"), "bairro": b["bairro"] if b else pega("bairro"), "endereco": pega("endereco"), "referencia": pega("referencia"),
+        primeira = sorted(str(j).split("-")[0] for j in (self.cfg.get("janelas_entrega") or ["09:00-11:00"]))[0]
+        it = agenda.criar(data, agenda.janela_inicio(janela, primeira), tipo, "%s - %s (%s)" % (tipo, pega("cliente"), nome_b), "\n".join(det)[:800],
+                          0 if janela == agenda.QUALQUER else int(self.cfg.get("entrega_antes", 15) or 0), id_=iid,
+                          extra={"cliente": pega("cliente"), "bairro": nome_b, "endereco": pega("endereco"), "referencia": pega("referencia"),
                                  "obs": pega("detalhe"), "cep": cep, "telefone": tel_fmt, "vendedor": pega("vendedor"),
                                  "janela": janela, "zona": b["zona"] if b else "", "tempo": b["tempo"] if b else ""})
+        self.aprender_entrega(it)
         return it
 
     def ag_imprimir(self, it):
@@ -2549,28 +2596,125 @@ class App:
         w.configure(bg=BG)
         w.geometry("+%d+%d" % (max(20, self.root.winfo_screenwidth() // 2 - 400), 60))
         edit = {"id": None}
-        V = {"tipo": tk.StringVar(value=agenda.TIPOS[0]), "data": tk.StringVar(), "hora": tk.StringVar(value="14:00"),
+        ENT = list(agenda.TIPOS_ENTREGA)
+        V = {"tipo": tk.StringVar(value=ENT[0]), "data": tk.StringVar(), "hora": tk.StringVar(value="14:00"),
              "antes": tk.StringVar(value="15"), "titulo": tk.StringVar()}
+        E = {k: tk.StringVar() for k in ("vendedor", "cliente", "tel", "bairro", "end", "ref", "cep", "jan", "esp")}
         V["data"].set(agenda.data_br(today()))
+        OUTRO = "Outro horário (digitar)"
+        janelas = list(self.cfg.get("janelas_entrega") or []) + [agenda.QUALQUER, OUTRO]
+        E["jan"].set(janelas[0])
         f = tk.Frame(w, bg=BG)
         f.pack(fill="x", padx=16, pady=(14, 6))
-        tk.Label(f, text="Novo aviso / compromisso", font=(FONT, 12, "bold"), bg=BG, fg=INK).grid(row=0, column=0, columnspan=6, sticky="w")
-        for c, (txt, wd) in enumerate([("O que é", 0), ("Dia (dd/mm/aaaa)", 0), ("Hora", 0), ("Avisar antes (min)", 0)]):
-            tk.Label(f, text=txt, font=(FONT, 9), bg=BG, fg=GREY).grid(row=1, column=c, sticky="w", padx=(0, 8), pady=(8, 0))
-        ttk.Combobox(f, textvariable=V["tipo"], values=agenda.TIPOS, width=18, state="readonly").grid(row=2, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(f, textvariable=V["data"], width=14).grid(row=2, column=1, sticky="w", padx=(0, 8))
-        ttk.Entry(f, textvariable=V["hora"], width=7).grid(row=2, column=2, sticky="w", padx=(0, 8))
-        ttk.Combobox(f, textvariable=V["antes"], values=[str(x) for x in agenda.ANTES], width=6, state="readonly").grid(row=2, column=3, sticky="w")
-        tk.Label(f, text="Título (ex.: Condicional para Fulana)", font=(FONT, 9), bg=BG, fg=GREY).grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
-        ttk.Entry(f, textvariable=V["titulo"], width=70).grid(row=4, column=0, columnspan=4, sticky="we")
-        tk.Label(f, text="Detalhes: endereço, o que explicar ao entregador, telefone...", font=(FONT, 9), bg=BG, fg=GREY).grid(row=5, column=0, columnspan=4, sticky="w", pady=(8, 0))
-        det = tk.Text(f, height=4, width=70, font=(FONT, 10), wrap="word")
-        det.grid(row=6, column=0, columnspan=4, sticky="we")
+        tk.Label(f, text="Novo agendamento", font=(FONT, 12, "bold"), bg=BG, fg=INK).grid(row=0, column=0, columnspan=6, sticky="w")
+        tk.Label(f, text="O que é", font=(FONT, 9), bg=BG, fg=GREY).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        cb_tipo = ttk.Combobox(f, textvariable=V["tipo"], values=agenda.TIPOS, width=24, state="readonly")
+        cb_tipo.grid(row=2, column=0, sticky="w")
+
+        def lab(par, txt, r, c, span=1):
+            tk.Label(par, text=txt, font=(FONT, 9), bg=BG, fg=GREY).grid(row=r, column=c, columnspan=span, sticky="w", padx=(0, 8), pady=(8, 0))
+
+        # ---- formulário de ENTREGA / CONDICIONAL / TROCA (igual ao do site dos vendedores)
+        fe = tk.Frame(f, bg=BG)
+        lab(fe, "Vendedor(a) *", 0, 0)
+        cb_vend = ttk.Combobox(fe, textvariable=E["vendedor"], values=self.lista_vendedores(), width=24)
+        cb_vend.grid(row=1, column=0, sticky="w", padx=(0, 8))
+        lab(fe, "Dia * (dd/mm/aaaa)", 0, 1)
+        ttk.Entry(fe, textvariable=V["data"], width=14).grid(row=1, column=1, sticky="w", padx=(0, 8))
+        lab(fe, "Horário *", 0, 2)
+        cb_jan = ttk.Combobox(fe, textvariable=E["jan"], values=janelas, width=22, state="readonly")
+        cb_jan.grid(row=1, column=2, sticky="w")
+        lab(fe, "Horário específico (HH:MM)", 0, 3)
+        ent_esp = ttk.Entry(fe, textvariable=E["esp"], width=8, state="disabled")
+        ent_esp.grid(row=1, column=3, sticky="w", padx=(8, 0))
+        lab(fe, "Nome do cliente *", 2, 0)
+        ttk.Entry(fe, textvariable=E["cliente"], width=34).grid(row=3, column=0, columnspan=2, sticky="w")
+        lab(fe, "Telefone * (DDD + número)", 2, 2)
+        ttk.Entry(fe, textvariable=E["tel"], width=20).grid(row=3, column=2, sticky="w")
+        lab(fe, "Bairro * (digite o começo: cen, sant...)", 4, 0, 2)
+        ent_b = ttk.Entry(fe, textvariable=E["bairro"], width=34)
+        ent_b.grid(row=5, column=0, columnspan=2, sticky="w")
+        binfo = tk.Label(fe, text="", font=(FONT, 9), bg=BG, fg=GREY, anchor="w", justify="left")
+        binfo.grid(row=5, column=2, columnspan=2, sticky="w")
+        sug = tk.Listbox(fe, height=0, font=(FONT, 10), exportselection=False, activestyle="none")
+        lab(fe, "Endereço * (rua, número, complemento)", 7, 0, 3)
+        ttk.Entry(fe, textvariable=E["end"], width=70).grid(row=8, column=0, columnspan=4, sticky="we")
+        lab(fe, "Ponto de referência", 9, 0, 2)
+        ttk.Entry(fe, textvariable=E["ref"], width=48).grid(row=10, column=0, columnspan=2, sticky="w")
+        lab(fe, "CEP (opcional)", 9, 2)
+        ttk.Entry(fe, textvariable=E["cep"], width=12).grid(row=10, column=2, sticky="w")
+        lab(fe, "Observações", 11, 0, 3)
+        obs = tk.Text(fe, height=2, width=70, font=(FONT, 10), wrap="word")
+        obs.grid(row=12, column=0, columnspan=4, sticky="we")
+
+        # ---- formulário de lembrete / aviso / atendimento
+        fg = tk.Frame(f, bg=BG)
+        for c, txt in enumerate(("Dia (dd/mm/aaaa)", "Hora", "Avisar antes (min)")):
+            lab(fg, txt, 0, c)
+        ttk.Entry(fg, textvariable=V["data"], width=14).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(fg, textvariable=V["hora"], width=7).grid(row=1, column=1, sticky="w", padx=(0, 8))
+        ttk.Combobox(fg, textvariable=V["antes"], values=[str(x) for x in agenda.ANTES], width=6, state="readonly").grid(row=1, column=2, sticky="w")
+        lab(fg, "Título (ex.: Ligar para a Maria)", 2, 0, 3)
+        ttk.Entry(fg, textvariable=V["titulo"], width=70).grid(row=3, column=0, columnspan=3, sticky="we")
+        lab(fg, "Detalhes (o que explicar, telefone...)", 4, 0, 3)
+        det = tk.Text(fg, height=4, width=70, font=(FONT, 10), wrap="word")
+        det.grid(row=5, column=0, columnspan=3, sticky="we")
+
+        bar = tk.Frame(f, bg=BG)
+        bar.grid(row=4, column=0, columnspan=6, sticky="w", pady=(8, 0))
         msg = tk.Label(f, text="", font=(FONT, 9), bg=BG, fg=RED, anchor="w", justify="left", wraplength=640)
-        msg.grid(row=8, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        msg.grid(row=5, column=0, columnspan=6, sticky="w", pady=(4, 0))
+
+        def mostrar_form(_e=None):
+            if V["tipo"].get() in ENT:
+                fg.grid_remove()
+                fe.grid(row=3, column=0, columnspan=6, sticky="w")
+            else:
+                fe.grid_remove()
+                fg.grid(row=3, column=0, columnspan=6, sticky="w")
+            msg.configure(text="")
+        cb_tipo.bind("<<ComboboxSelected>>", mostrar_form)
+
+        def jan_mudou(_e=None):
+            esp = E["jan"].get() == OUTRO
+            ent_esp.configure(state="normal" if esp else "disabled")
+            if not esp:
+                E["esp"].set("")
+        cb_jan.bind("<<ComboboxSelected>>", jan_mudou)
+
+        def sugerir(_e=None):
+            t = agenda.chave_bairro(E["bairro"].get())
+            exato = bairros().get(t)
+            sug.delete(0, "end")
+            if exato:
+                binfo.configure(text="Região %s · %s · %s" % (exato["zona"], exato["dist"], exato["tempo"]), fg=GREEN)
+            elif t:
+                binfo.configure(text="Bairro fora da tabela: será guardado para as próximas vezes.", fg=GREY)
+            else:
+                binfo.configure(text="")
+            if len(t) >= 2 and not exato:
+                ach = [n for n, _b in self.todos_bairros() if agenda.chave_bairro(n).startswith(t) or (" " + t) in (" " + agenda.chave_bairro(n))][:6]
+            else:
+                ach = []
+            if ach:
+                for n in ach:
+                    sug.insert("end", n)
+                sug.configure(height=len(ach))
+                sug.grid(row=6, column=0, columnspan=2, sticky="we")
+            else:
+                sug.grid_remove()
+
+        def escolher_bairro(_e=None):
+            sel = sug.curselection()
+            if sel:
+                E["bairro"].set(sug.get(sel[0]))
+                sug.grid_remove()
+                sugerir()
+        ent_b.bind("<KeyRelease>", sugerir)
+        sug.bind("<<ListboxSelect>>", escolher_bairro)
 
         cols = ("quando", "tipo", "titulo", "status")
-        tv = ttk.Treeview(w, columns=cols, show="headings", height=11, selectmode="browse")
+        tv = ttk.Treeview(w, columns=cols, show="headings", height=7, selectmode="browse")
         for c, t, wd in (("quando", "Quando", 120), ("tipo", "Tipo", 130), ("titulo", "O que", 380), ("status", "Situação", 90)):
             tv.heading(c, text=t)
             tv.column(c, width=wd, anchor="w")
@@ -2582,14 +2726,24 @@ class App:
 
         def limpar_form():
             edit["id"] = None
-            V["tipo"].set(agenda.TIPOS[0])
+            V["tipo"].set(ENT[0])
             V["data"].set(agenda.data_br(today()))
             V["hora"].set("14:00")
             V["antes"].set("15")
             V["titulo"].set("")
             det.delete("1.0", "end")
+            obs.delete("1.0", "end")
+            vend = E["vendedor"].get()
+            for k in E:
+                E[k].set("")
+            E["vendedor"].set(vend)                 # mantém o vendedor para o próximo cadastro
+            E["jan"].set(janelas[0])
+            jan_mudou()
+            cb_vend.configure(values=self.lista_vendedores())
+            sug.grid_remove()
+            binfo.configure(text="")
             btn_add.configure(text="Adicionar")
-            msg.configure(text="")
+            mostrar_form()
 
         def recarregar():
             tv.delete(*tv.get_children())
@@ -2615,15 +2769,40 @@ class App:
 
         def adicionar():
             try:
-                d = agenda.parse_data(V["data"].get())
-                h = agenda.parse_hora(V["hora"].get())
-                novo = agenda.criar(d, h, V["tipo"].get(), V["titulo"].get(), det.get("1.0", "end"), int(V["antes"].get() or 0), id_=edit["id"])
+                if V["tipo"].get() in ENT:
+                    jan = E["jan"].get()
+                    if jan == OUTRO:
+                        if not E["esp"].get().strip():
+                            raise ValueError("Digite o horário específico (ex.: 14:30).")
+                        jan = E["esp"].get().strip()
+                    pedido = {"tipo": V["tipo"].get(), "vendedor": E["vendedor"].get(), "cliente": E["cliente"].get(), "telefone": E["tel"].get(),
+                              "bairro": E["bairro"].get(), "endereco": E["end"].get(), "referencia": E["ref"].get(), "cep": E["cep"].get(),
+                              "data": V["data"].get(), "janela": jan, "detalhe": obs.get("1.0", "end").strip()}
+                    try:
+                        novo = self.item_entrega(pedido, edit["id"])
+                    except ValueError as ex:
+                        t = str(ex)
+                        if t.startswith("falta "):
+                            t = "Preencha: " + t[6:] + "."
+                        elif t == "dia sem entregas":
+                            t = "Nesse dia não há entregas (veja os dias em Configurações > Entregas)."
+                        elif t == "telefone inválido":
+                            t = "Telefone inválido: use DDD + número (10 ou 11 números)."
+                        elif t == "CEP inválido":
+                            t = "CEP inválido: use 8 números ou deixe vazio."
+                        raise ValueError(t)
+                else:
+                    d = agenda.parse_data(V["data"].get())
+                    h = agenda.parse_hora(V["hora"].get())
+                    novo = agenda.criar(d, h, V["tipo"].get(), V["titulo"].get(), det.get("1.0", "end"), int(V["antes"].get() or 0), id_=edit["id"])
             except ValueError as ex:
-                msg.configure(text=str(ex))
+                msg.configure(text=str(ex), fg=RED)
                 return
             if edit["id"]:
                 self.ag_est.pop(edit["id"], None)
             self.ag_gravar(novo)
+            if novo.get("tipo") in ENT and not edit["id"]:
+                self.auto_imprimir(novo, recente=False)
             limpar_form()
             recarregar()
             msg.configure(text="Salvo.", fg=GREEN)
@@ -2637,15 +2816,36 @@ class App:
             it = selecionado()
             if not it:
                 return
+            limpar_form()
             edit["id"] = it["id"]
             V["tipo"].set(it["tipo"])
             V["data"].set(agenda.data_br(it["data"]))
-            V["hora"].set(it["hora"])
-            V["antes"].set(str(it.get("antes", 0)))
-            V["titulo"].set(it["titulo"])
-            det.delete("1.0", "end")
-            det.insert("1.0", it.get("detalhe", ""))
+            if it["tipo"] in ENT:
+                E["vendedor"].set(it.get("vendedor", ""))
+                E["cliente"].set(it.get("cliente", ""))
+                E["tel"].set(it.get("telefone", ""))
+                E["bairro"].set(it.get("bairro", ""))
+                E["end"].set(it.get("endereco", ""))
+                E["ref"].set(it.get("referencia", ""))
+                E["cep"].set(it.get("cep", ""))
+                obs.insert("1.0", it.get("obs", ""))
+                j = it.get("janela") or ""
+                if j in janelas:
+                    E["jan"].set(j)
+                elif j:
+                    E["jan"].set(OUTRO)
+                    E["esp"].set(j.split("-")[0])
+                jan_mudou()
+                sugerir()
+                if not it.get("endereco"):
+                    msg.configure(text="Esta entrega está sem endereço/dados. Preencha os campos e salve para poder imprimir.", fg=RED)
+            else:
+                V["hora"].set(it["hora"])
+                V["antes"].set(str(it.get("antes", 0)))
+                V["titulo"].set(it["titulo"])
+                det.insert("1.0", it.get("detalhe", ""))
             btn_add.configure(text="Salvar alteração")
+            mostrar_form()
 
         def marcar():
             it = selecionado()
@@ -2661,8 +2861,6 @@ class App:
                     limpar_form()
                 recarregar()
         tv.bind("<Double-1>", editar)
-        bar = tk.Frame(f, bg=BG)
-        bar.grid(row=7, column=0, columnspan=4, sticky="w", pady=(8, 0))
         btn_add = tk.Button(bar, text="Adicionar", command=adicionar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=16, pady=4, cursor="hand2")
         btn_add.pack(side="left")
         tk.Button(bar, text="Limpar", command=limpar_form, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
@@ -2681,7 +2879,7 @@ class App:
             if not it:
                 msg.configure(text="Escolha um item da lista para imprimir.", fg=RED)
             elif not it.get("endereco"):
-                msg.configure(text="Esse item não tem endereço cadastrado.", fg=RED)
+                msg.configure(text="Esse item não tem endereço. Dê 2 cliques nele, preencha o endereço e salve.", fg=RED)
             else:
                 self.ag_imprimir(it)
 
@@ -2694,6 +2892,7 @@ class App:
         tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         tk.Button(b2, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="right")
         recarregar()
+        mostrar_form()
 
     def open_hoje(self):
         hoje = dt.date.today()
