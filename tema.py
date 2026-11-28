@@ -2,6 +2,8 @@
 """Aparência do Painel do Caixa: temas prontos, fundo em degradê e botões com efeito ao passar o mouse."""
 import base64
 import io
+import tkinter as tk
+import tkinter.font as tkfont
 
 TEMAS = {
     "Azul claro":   ("#EAF0FA", "#C9D9F2"),
@@ -139,17 +141,30 @@ def polir(raiz):
         pass
 
 
-class Pilha:
-    """Empilha cartões (Frames) sobre um Canvas, deixando o fundo/degradê aparecer entre eles."""
+def _pontos_arredondados(x1, y1, x2, y2, r):
+    r = max(1, min(r, (x2 - x1) / 2.0, (y2 - y1) / 2.0))
+    return [x1 + r, y1, x1 + r, y1, x2 - r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y1 + r, x2, y2 - r, x2, y2 - r,
+            x2, y2, x2 - r, y2, x2 - r, y2, x1 + r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y2 - r, x1, y1 + r, x1, y1 + r, x1, y1]
 
-    def __init__(self, canvas, margem=18, gap=10, topo=10, ao_medir=None):
+
+def retangulo_arredondado(cv, x1, y1, x2, y2, r, **kw):
+    return cv.create_polygon(_pontos_arredondados(x1, y1, x2, y2, r), smooth=True, **kw)
+
+
+class Pilha:
+    """Empilha cartões (Frames) sobre um Canvas; cada um ganha fundo arredondado com sombra suave e o degradê aparece entre eles."""
+
+    def __init__(self, canvas, margem=18, gap=12, topo=8, ao_medir=None, cartao="#FFFFFF", sombra="#C5CCD8", borda="#E3E8F0", raio=18, pad=8):
         self.cv, self.margem, self.gap, self.topo = canvas, margem, gap, topo
         self.itens, self.ao_medir, self._agendado, self.altura = [], ao_medir, False, 0
+        self.cor, self.sombra, self.borda, self.raio, self.pad = cartao, sombra, borda, raio, pad
         canvas.bind("<Configure>", lambda e: self.agendar(), add="+")
 
     def add(self, frame):
+        sh = retangulo_arredondado(self.cv, 0, 0, 10, 10, self.raio, fill=self.sombra, outline="")
+        bg = retangulo_arredondado(self.cv, 0, 0, 10, 10, self.raio, fill=self.cor, outline=self.borda)
         item = self.cv.create_window(0, 0, window=frame, anchor="nw")
-        self.itens.append((item, frame))
+        self.itens.append((item, frame, sh, bg))
         frame.bind("<Configure>", lambda e: self.agendar(), add="+")
         self.agendar()
 
@@ -163,14 +178,160 @@ class Pilha:
         try:
             if not self.cv.winfo_exists():
                 return
-            larg = max(120, self.cv.winfo_width() - 2 * self.margem)
-            y = self.topo
-            for item, fr in self.itens:
-                self.cv.coords(item, self.margem, y)
-                self.cv.itemconfigure(item, width=larg)
-                y += fr.winfo_reqheight() + self.gap
+            larg = max(160, self.cv.winfo_width() - 2 * self.margem)
+            y, p = self.topo, self.pad
+            for item, fr, sh, bg in self.itens:
+                h = fr.winfo_reqheight() + 2 * p
+                x1, x2 = self.margem, self.margem + larg
+                self.cv.coords(sh, *_pontos_arredondados(x1, y + 3, x2, y + h + 3, self.raio))
+                self.cv.coords(bg, *_pontos_arredondados(x1, y, x2, y + h, self.raio))
+                self.cv.coords(item, x1 + p, y + p)
+                self.cv.itemconfigure(item, width=larg - 2 * p)
+                y += h + self.gap
             self.altura = y
+            self.cv.tag_lower("fundo")
             if self.ao_medir:
                 self.ao_medir(y)
         except Exception:
             pass
+
+
+class Pilula(tk.Canvas):
+    """Botão de cantos arredondados (desenhado num Canvas) com efeito ao passar o mouse.
+    Aceita config(text=, bg=, fg=, command=, state=) como um botão comum."""
+
+    def __init__(self, pai, text="", command=None, bg="#E9EDF2", fg="#14202E", font=("Segoe UI", 10, "bold"),
+                 padx=14, pady=6, minw=0, raio=12, fundo=None, state="normal", **_ignorado):
+        if fundo is None:
+            try:
+                fundo = pai.cget("bg")
+            except Exception:
+                fundo = "#FFFFFF"
+        super().__init__(pai, bg=fundo, highlightthickness=0, bd=0, cursor="hand2")
+        self._d = {"text": text, "command": command, "bg": bg, "fg": fg, "state": state}
+        self._fonte, self._padx, self._pady, self._minw, self._raio = tkfont.Font(font=font), padx, pady, minw, raio
+        self._hover = False
+        self._medir()
+        self.bind("<Configure>", lambda e: self._desenha())
+        self.bind("<Enter>", lambda e: self._muda_hover(True))
+        self.bind("<Leave>", lambda e: self._muda_hover(False))
+        self.bind("<ButtonRelease-1>", self._solta)
+
+    def _medir(self):
+        w = max(self._minw, self._fonte.measure(self._d["text"]) + 2 * self._padx)
+        h = self._fonte.metrics("linespace") + 2 * self._pady
+        tk.Canvas.configure(self, width=w, height=h)
+
+    def _muda_hover(self, v):
+        self._hover = v
+        self._desenha()
+
+    def _solta(self, e):
+        if self._d["state"] == "disabled":
+            return
+        if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height() and self._d["command"]:
+            self._d["command"]()
+
+    def invoke(self):
+        if self._d["state"] != "disabled" and self._d["command"]:
+            return self._d["command"]()
+
+    def _desenha(self):
+        try:
+            self.delete("all")
+            w, h = self.winfo_width(), self.winfo_height()
+            if w < 4 or h < 4:
+                return
+            bg, fg = self._d["bg"], self._d["fg"]
+            if self._d["state"] == "disabled":
+                bg, fg = mistura(bg, "#FFFFFF", 0.5), mistura(fg, "#FFFFFF", 0.5)
+            elif self._hover:
+                bg = escurece(bg, 0.10 if luminosidade(bg) < 0.8 else 0.06)
+            retangulo_arredondado(self, 1, 1, w - 1, h - 1, self._raio, fill=bg, outline=bg)
+            self.create_text(w / 2.0, h / 2.0, text=self._d["text"], fill=fg, font=self._fonte)
+        except Exception:
+            pass
+
+    def configure(self, cnf=None, **kw):
+        kw = dict(cnf or {}, **kw)
+        mudou = False
+        for k in ("text", "command", "bg", "fg", "state"):
+            if k in kw:
+                self._d[k] = kw.pop(k)
+                mudou = True
+        for k in ("relief", "bd", "activebackground", "activeforeground", "cursor", "padx", "pady", "font", "width", "anchor"):
+            kw.pop(k, None)
+        if kw:
+            tk.Canvas.configure(self, **kw)
+        if mudou:
+            self._medir()
+            self._desenha()
+    config = configure
+
+    def cget(self, k):
+        if k in self._d:
+            return self._d[k]
+        return tk.Canvas.cget(self, k)
+
+    def __getitem__(self, k):
+        return self.cget(k)
+
+    def __setitem__(self, k, v):
+        self.configure(**{k: v})
+
+
+class Marca(tk.Canvas):
+    """Caixa de seleção arredondada (substitui o Checkbutton)."""
+
+    def __init__(self, pai, text="", variable=None, command=None, font=("Segoe UI", 13), fg="#14202E",
+                 cor="#13805A", fundo="#FFFFFF", **_ignorado):
+        super().__init__(pai, bg=fundo, highlightthickness=0, bd=0, cursor="hand2")
+        self._var = variable if variable is not None else tk.BooleanVar(value=False)
+        self._cmd, self._txt, self._cor, self._fg = command, text, cor, fg
+        self._fonte = tkfont.Font(font=font)
+        tk.Canvas.configure(self, height=max(30, self._fonte.metrics("linespace") + 8), width=60)
+        self._hover = False
+        self.bind("<Configure>", lambda e: self._desenha())
+        self.bind("<Button-1>", self._clica)
+        self.bind("<Enter>", lambda e: self._h(True))
+        self.bind("<Leave>", lambda e: self._h(False))
+        try:
+            self._var.trace_add("write", lambda *a: self._desenha())
+        except Exception:
+            pass
+
+    def _h(self, v):
+        self._hover = v
+        self._desenha()
+
+    def _clica(self, _e):
+        self._var.set(not self._var.get())
+        if self._cmd:
+            self._cmd()
+
+    def _desenha(self):
+        try:
+            self.delete("all")
+            h = self.winfo_height()
+            t = 22
+            y = (h - t) / 2.0
+            on = bool(self._var.get())
+            if on:
+                retangulo_arredondado(self, 2, y, 2 + t, y + t, 8, fill=self._cor, outline=self._cor)
+                self.create_line(2 + 6, y + 11.5, 2 + 10, y + 15.5, 2 + 17, y + 7, fill="#FFFFFF", width=2.5, capstyle="round", joinstyle="round")
+            else:
+                retangulo_arredondado(self, 2, y, 2 + t, y + t, 8, fill="#FFFFFF" if not self._hover else "#F1F4F9", outline="#B8C2D1", width=2)
+            self.create_text(2 + t + 12, h / 2.0, text=self._txt, anchor="w", font=self._fonte,
+                             fill="#8A96A6" if on else self._fg)
+        except Exception:
+            pass
+
+
+def botao_generico(pai, **kw):
+    """Substitui tk.Button: mesmos argumentos de sempre, visual arredondado."""
+    bg = kw.get("bg") or kw.get("background") or "#E9EDF2"
+    fg = kw.get("fg") or kw.get("foreground") or "#14202E"
+    return Pilula(pai, text=kw.get("text", ""), command=kw.get("command"), bg=bg, fg=fg,
+                  font=kw.get("font") or ("Segoe UI", 10, "bold"), padx=int(kw.get("padx", 14) or 14),
+                  pady=int(kw.get("pady", 6) or 6) if not isinstance(kw.get("pady"), tuple) else 6,
+                  minw=int((kw.get("width") or 0)) * 8, state=kw.get("state", "normal"))

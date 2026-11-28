@@ -166,7 +166,7 @@ def abrir(app):
     marca(t1, 13, "Tocar sons junto com os avisos", "som", cfg.get("som", True))
 
     # ---------------- Horários por dia da semana
-    t2 = tab("Horários por dia")
+    t2 = tab("Horários")
     ttk.Label(t2, text="Horário de cada dia da semana (formato HH:MM)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=8, sticky="w")
     ttk.Label(t2, text="Dias sem a opção Aberto ficam em silêncio e sem relatório (por exemplo, domingo).",
               foreground=GREY).grid(row=1, column=0, columnspan=8, sticky="w", pady=(0, 8))
@@ -195,7 +195,7 @@ def abrir(app):
               foreground=GREY, wraplength=760, justify="left").grid(row=12, column=0, columnspan=8, sticky="w", pady=(10, 0), padx=4)
 
     # ---------------- Datas especiais (campanhas, feriados, sábado diferente)
-    tx = tab("Datas especiais")
+    tx = tab("Datas")
     ttk.Label(tx, text="Horários diferentes em datas específicas (Black Friday, Natal, feriado...)", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=9, sticky="w")
     ttk.Label(tx, text="Vale no lugar do horário do dia da semana. Datas no formato DD/MM/AAAA. Para um dia só, deixe 'Até' vazio. "
                        "Horas do caixa vazias = a cada hora cheia da tarde. Para só o dia de hoje, use o botão Horário de hoje.",
@@ -229,7 +229,7 @@ def abrir(app):
     ttk.Label(tx, text="Linhas sem nome e sem data são ignoradas. Datas passadas podem ser apagadas.", foreground=GREY).grid(row=3 + MAX_EXC, column=0, columnspan=9, sticky="w", pady=(8, 0))
 
     # ---------------- Funcionários
-    tf = tab("Funcionários")
+    tf = tab("Equipe")
     ttk.Label(tf, text="Funcionários do caixa e o turno de cada um", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=9, sticky="w")
     ttk.Label(tf, text="Em cada dia escreva o turno no formato 09:00-13:00. Deixe vazio para folga. Cada funcionário tem os próprios "
                        "pontos, sequência e meta da semana. O app sabe quem está no caixa pelo horário.",
@@ -272,7 +272,7 @@ def abrir(app):
     tx_lem.insert("1.0", "\n".join(" | ".join(r) for r in cfg.get("lembretes_fixos", [])))
 
     # ---------------- Frases e tarefas
-    t4 = tab("Frases e tarefas")
+    t4 = tab("Frases")
     ttk.Label(t4, text="Escolha a lista que quer editar:", font=(FONT, 11, "bold")).grid(row=0, column=0, sticky="w")
     nomes = [n for _, n in LISTAS]
     sel = tk.StringVar(value=nomes[0])
@@ -311,7 +311,7 @@ def abrir(app):
               justify="left").grid(row=3, column=0, sticky="w", pady=(8, 0))
 
     # ---------------- Pontos e prêmio
-    t5 = tab("Pontos e prêmio")
+    t5 = tab("Pontos")
     marca(t5, 0, "Mostrar pontos e mensagens de pontos para o caixa", "mostrar", cfg.get("mostrar_pontos", True))
     spin(t5, 1, "Pontos por tarefa feita em até 5 min do horário", "p_ok", cfg.get("pontos_no_prazo", 2), 0, 100)
     spin(t5, 2, "Pontos por tarefa feita em até 15 min", "p_leve", cfg.get("pontos_atraso_leve", 1), 0, 100)
@@ -403,7 +403,7 @@ def abrir(app):
               foreground=GREY, wraplength=700, justify="left").grid(row=12, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
     # ---------------- Loja e líder (nuvem automática)
-    t9 = tab("Loja e líder")
+    t9 = tab("Loja")
     try:
         import nuvem as _nv
     except Exception:
@@ -543,7 +543,7 @@ def abrir(app):
                     variable=V["imp_auto"]).grid(row=8, column=0, columnspan=3, sticky="w", pady=(12, 0))
 
     # ---------------- Vendedores e bairros guardados
-    t12 = tab("Vendedores e bairros")
+    t12 = tab("Vendedores")
     ttk.Label(t12, text="Vendedores e bairros guardados", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
     ttk.Label(t12, text="Os nomes de vendedores e os bairros novos digitados nos agendamentos são guardados sozinhos e sugeridos da próxima vez. "
                         "Aqui você corrige, acrescenta ou apaga (um por linha).", foreground=GREY, wraplength=640, justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(2, 8))
@@ -572,7 +572,7 @@ def abrir(app):
     tx_tab.configure(state="disabled")
 
     # ---------------- Celular pelo Wi-Fi da loja
-    t10 = tab("Rede da loja (Wi-Fi)")
+    t10 = tab("Rede")
     ttk.Label(t10, text="Rede da loja: celulares e outros computadores", font=(FONT, 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
     lc = getattr(app, "local", None)
     end = lc.endereco() if lc else ""

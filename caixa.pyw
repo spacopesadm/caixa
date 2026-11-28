@@ -50,6 +50,7 @@ try:
 except Exception:
     agenda = None
 import tema
+Btn = tema.botao_generico
 try:
     import redelocal as rede_local
 except Exception:
@@ -861,7 +862,7 @@ class App:
                     msg.config(text=res.get("erro", "Não deu certo."), fg=RED)
                 res.clear()
             w.after(300, espera)
-        btn = tk.Button(w, text="Conectar", command=conectar, font=(FONT, 12, "bold"), bg=INK, fg="white", bd=0, padx=18, pady=8)
+        btn = Btn(w, text="Conectar", command=conectar, font=(FONT, 12, "bold"), bg=INK, fg="white", bd=0, padx=18, pady=8)
         btn.pack(padx=26, pady=(12, 18), anchor="w")
         e1.focus_set()
 
@@ -914,13 +915,13 @@ class App:
             cod = nuvem.novo_codigo()
             self.conectar_loja(cod, True)
             msg.set("Loja criada! Código: %s\nNos outros computadores escolha \"Entrar com o código\". Em Configurações > Loja e líder tem o QR code do celular." % nuvem.formatar_codigo(cod))
-            tk.Button(w, text="Fechar", command=w.destroy, font=(FONT, 11, "bold"), bg=INK, fg="white", bd=0, padx=16, pady=8).pack(pady=(0, 18))
+            Btn(w, text="Fechar", command=w.destroy, font=(FONT, 11, "bold"), bg=INK, fg="white", bd=0, padx=16, pady=8).pack(pady=(0, 18))
             b1.config(state="disabled")
             b2.config(state="disabled")
-        b1 = tk.Button(w, text="Este é o primeiro computador: criar a loja", command=criar, font=(FONT, 12, "bold"), bg=INK, fg="white",
+        b1 = Btn(w, text="Este é o primeiro computador: criar a loja", command=criar, font=(FONT, 12, "bold"), bg=INK, fg="white",
                        bd=0, padx=16, pady=10)
         b1.pack(padx=28, pady=(16, 6), fill="x")
-        tk.Button(w, text="Este é outro computador: conectar ao principal pelo PIN", command=lambda: (w.destroy(), self.open_conectar_servidor()),
+        Btn(w, text="Este é outro computador: conectar ao principal pelo PIN", command=lambda: (w.destroy(), self.open_conectar_servidor()),
                   font=(FONT, 12, "bold"), bg=PINK, fg="white", bd=0, padx=16, pady=10).pack(padx=28, pady=(6, 6), fill="x")
         tk.Label(w, text="Já existe outro computador? Digite o código da loja (ou copie e cole):", font=(FONT, 10), bg=BG, fg=INK).pack(padx=28, pady=(12, 2), anchor="w")
         var = tk.StringVar()
@@ -952,7 +953,7 @@ class App:
                 else:
                     msg.set("Loja não encontrada. Confira o código." if res[0] is False else res[0])
             espera()
-        b2 = tk.Button(w, text="Entrar com o código", command=entrar, font=(FONT, 11, "bold"), bg=PINK, fg="white", bd=0, padx=14, pady=8)
+        b2 = Btn(w, text="Entrar com o código", command=entrar, font=(FONT, 11, "bold"), bg=PINK, fg="white", bd=0, padx=14, pady=8)
         b2.pack(padx=28, pady=(8, 0), anchor="w")
         tk.Label(w, textvariable=msg, font=(FONT, 10), bg=BG, fg=INK, wraplength=440, justify="left").pack(padx=28, pady=(10, 4), anchor="w")
 
@@ -960,7 +961,7 @@ class App:
             self.cfg["wizard_adiado"] = True
             save_json(CONFIG_FILE, self.cfg)
             w.destroy()
-        tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
+        Btn(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
 
     # ---- configurações iguais em todos os computadores
     CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas", "imprimir_auto", "modo_cliente", "tema_nome", "tema_cor1", "tema_cor2", "tema_degrade"}
@@ -1303,10 +1304,10 @@ class App:
                         holder["pop"].close()
             return f
         for txt, cb in buttons:
-            tk.Button(bar, text=txt, command=wrap(cb), bg=fg, fg=bg, activebackground=fg, activeforeground=bg,
+            Btn(bar, text=txt, command=wrap(cb), bg=fg, fg=bg, activebackground=fg, activeforeground=bg,
                       relief="flat", font=(FONT, 10, "bold"), padx=14, pady=5, cursor="hand2").pack(side="left", padx=(0, 8))
         if pause_link:
-            tk.Button(bar, text="pausar %d min" % self.cfg["pausa_atendimento_minutos"],
+            Btn(bar, text="pausar %d min" % self.cfg["pausa_atendimento_minutos"],
                       command=wrap(lambda: self.set_hold(True)), bg=bg, fg=fg, activebackground=bg,
                       activeforeground=fg, relief="flat", bd=0, font=(FONT, 9, "underline"),
                       cursor="hand2").pack(side="right")
@@ -2083,7 +2084,7 @@ class App:
             fechar()
             self.generate_report()
         for txt, cb in (("Gerar relatório do dia", rel), ("Fechar", fechar)):
-            tk.Button(bar, text=txt, command=cb, bg="#FFFFFF", fg=GREEN, activebackground="#FFFFFF",
+            Btn(bar, text=txt, command=cb, bg="#FFFFFF", fg=GREEN, activebackground="#FFFFFF",
                       relief="flat", font=(FONT, 10, "bold"), padx=14, pady=5, cursor="hand2").pack(side="left", padx=(18, 0))
         win.update_idletasks()
         pop = self.finish(win, W, win.winfo_reqheight(), corner)
@@ -2303,9 +2304,9 @@ class App:
             w.destroy()
         row = tk.Frame(w, bg=BG)
         row.pack(fill="x", padx=24, pady=16)
-        tk.Button(row, text="OK", command=ok, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 11, "bold"), padx=22, pady=5,
+        Btn(row, text="OK", command=ok, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 11, "bold"), padx=22, pady=5,
                   cursor="hand2").pack(side="right")
-        tk.Button(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5,
+        Btn(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5,
                   cursor="hand2").pack(side="right", padx=8)
 
     # ---- horário só de hoje (campanha, dia diferente) sem mexer na configuração geral
@@ -2612,7 +2613,7 @@ class App:
         w.minsize(920, 600)
         rodape = tk.Frame(w, bg=BG)
         rodape.pack(side="bottom", fill="x", padx=16, pady=(0, 10))
-        tk.Button(rodape, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=14, pady=4, cursor="hand2").pack(side="right")
+        Btn(rodape, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=14, pady=4, cursor="hand2").pack(side="right")
         st = ttk.Style(w)
         st.configure("Ag.Treeview", rowheight=28, font=(FONT, 10))
         st.configure("Ag.Treeview.Heading", font=(FONT, 10, "bold"))
@@ -2852,12 +2853,12 @@ class App:
         def mover(n):
             rdata.set(agenda.data_br((dt.date.fromisoformat(rd_dia()) + dt.timedelta(days=n)).isoformat()))
             roteiro_view()
-        tk.Button(fr, text="◀", command=lambda: mover(-1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
+        Btn(fr, text="◀", command=lambda: mover(-1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
         er = ttk.Entry(fr, textvariable=rdata, width=12, font=(FONT, 12, "bold"), justify="center")
         er.pack(side="left", padx=6)
         er.bind("<Return>", lambda _e: roteiro_view())
-        tk.Button(fr, text="▶", command=lambda: mover(1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
-        tk.Button(fr, text="Hoje", command=lambda: (rdata.set(agenda.data_br(today())), roteiro_view()), relief="flat", font=(FONT, 10), padx=10, cursor="hand2").pack(side="left", padx=8)
+        Btn(fr, text="▶", command=lambda: mover(1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
+        Btn(fr, text="Hoje", command=lambda: (rdata.set(agenda.data_br(today())), roteiro_view()), relief="flat", font=(FONT, 10), padx=10, cursor="hand2").pack(side="left", padx=8)
         rres = tk.Label(fr, text="", bg=BG, fg=GREY, font=(FONT, 10, "bold"))
         rres.pack(side="right")
         rtf = tk.Frame(tab_r, bg=BG)
@@ -3027,12 +3028,12 @@ class App:
                     limpar_form()
                 recarregar()
         tv.bind("<Double-1>", lambda e: clique(e) or editar(e))      # 2 cliques na caixinha = marca/desmarca; no resto da linha = editar
-        btn_add = tk.Button(bar, text="Adicionar", command=adicionar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=16, pady=4, cursor="hand2")
+        btn_add = Btn(bar, text="Adicionar", command=adicionar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=16, pady=4, cursor="hand2")
         btn_add.pack(side="left")
-        tk.Button(bar, text="Limpar", command=limpar_form, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        Btn(bar, text="Limpar", command=limpar_form, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         b2 = tk.Frame(tab_l, bg=BG)
         b2.pack(fill="x", padx=16, pady=(0, 10))
-        tk.Button(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
+        Btn(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         def copiar_roteiro():
             iso = rd_dia()
             self.root.clipboard_clear()
@@ -3050,12 +3051,12 @@ class App:
 
         def imprimir_dia():
             self.ag_imprimir_roteiro(rd_dia())
-        tk.Button(b2, text="Imprimir endereço", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
-        tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        Btn(b2, text="Imprimir endereço", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
+        Btn(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         br = tk.Frame(tab_r, bg=BG)
         br.pack(fill="x", padx=16, pady=(0, 10))
-        tk.Button(br, text="Imprimir roteiro do dia", command=imprimir_dia, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=14, pady=5, cursor="hand2").pack(side="left")
-        tk.Button(br, text="Copiar para o WhatsApp", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="left", padx=8)
+        Btn(br, text="Imprimir roteiro do dia", command=imprimir_dia, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=14, pady=5, cursor="hand2").pack(side="left")
+        Btn(br, text="Copiar para o WhatsApp", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="left", padx=8)
         recarregar()
         mostrar_form()
         tema.polir(w)
@@ -3115,10 +3116,10 @@ class App:
             w.destroy()
         row = tk.Frame(w, bg=BG)
         row.pack(fill="x", padx=24, pady=14)
-        tk.Button(row, text="Salvar", command=salvar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 11, "bold"), padx=22, pady=5, cursor="hand2").pack(side="right")
-        tk.Button(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="right", padx=8)
+        Btn(row, text="Salvar", command=salvar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 11, "bold"), padx=22, pady=5, cursor="hand2").pack(side="right")
+        Btn(row, text="Cancelar", command=w.destroy, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="right", padx=8)
         if any(x.get("id") == "hoje-" + iso for x in self.cfg.get("excecoes", [])):
-            tk.Button(row, text="Voltar ao normal", command=normal, relief="flat", font=(FONT, 10), padx=8, pady=5, cursor="hand2").pack(side="left")
+            Btn(row, text="Voltar ao normal", command=normal, relief="flat", font=(FONT, 10), padx=8, pady=5, cursor="hand2").pack(side="left")
 
     # ---- quem está no caixa: pergunta no começo do dia e na troca de turno
     def pedir_funcionario(self, titulo="Quem está no caixa agora?"):
@@ -3148,10 +3149,10 @@ class App:
             w.destroy()
         for e in emps:
             sug = atual is not None and e["id"] == atual["id"]
-            tk.Button(w, text=e["nome"] + ("   (turno agora)" if sug else ""), command=lambda e=e: escolher(e),
+            Btn(w, text=e["nome"] + ("   (turno agora)" if sug else ""), command=lambda e=e: escolher(e),
                       font=(FONT, 15, "bold"), bg=PINK if sug else INK, fg="#FFFFFF", activebackground=BLUE, activeforeground="#FFFFFF",
                       relief="flat", cursor="hand2", padx=20, pady=12).pack(fill="x", padx=30, pady=(12, 0))
-        tk.Button(w, text="Agora não", command=w.destroy, relief="flat", font=(FONT, 10), bg=BG, fg=GREY, cursor="hand2").pack(pady=(12, 16))
+        Btn(w, text="Agora não", command=w.destroy, relief="flat", font=(FONT, 10), bg=BG, fg=GREY, cursor="hand2").pack(pady=(12, 16))
 
     def checar_quem(self, d):
         """Pergunta quem está no caixa ao abrir o programa e no começo do turno de cada funcionário."""
@@ -3215,7 +3216,7 @@ class App:
     def make_pill(self):
         """Sem bandeja: um botãozinho discreto no canto para abrir o checklist."""
         win = self.new_win(INK)
-        tk.Button(win, text="Caixa", command=self.open_window, bg=INK, fg="#FFFFFF", relief="flat",
+        Btn(win, text="Caixa", command=self.open_window, bg=INK, fg="#FFFFFF", relief="flat",
                   font=(FONT, 9, "bold"), cursor="hand2", padx=8, pady=2).pack()
         win.update_idletasks()
         noactivate(win)
@@ -3290,8 +3291,8 @@ class App:
         self.win = w
         w.title("Painel do Caixa")
         h = max(420, min(880, w.winfo_screenheight() - 100))
-        w.geometry("680x%d+40+20" % h)
-        w.minsize(560, 420)
+        w.geometry("720x%d+40+20" % h)
+        w.minsize(660, 420)
         w.configure(bg=BG)
         w.protocol("WM_DELETE_WINDOW", w.withdraw)
         W = self.w = {"am": {}, "cx": {}, "conf": {}, "lem": {}, "lem_btn": {}}
@@ -3300,84 +3301,88 @@ class App:
         c1, c2, dg = tema.cores(self.cfg)
         mid = tema.cor_media(self.cfg)
         escuro = tema.luminosidade(mid) < 0.45
-        fundo_txt = "#E8EDF5" if escuro else GREY
-        borda = tema.escurece(mid, 0.10) if not escuro else "#46526A"
+        fundo_txt = "#E8EDF5" if escuro else "#4A5668"
+        sombra = tema.mistura(mid, "#000000", 0.20 if not escuro else 0.45)
+        borda = tema.mistura(mid, "#FFFFFF", 0.55) if not escuro else "#46526A"
         SOFT = "#EEF2F8"
         solido = c1 if dg == "nenhum" else mid
         w.configure(bg=solido)
+        estilo = dict(cartao=PAPER, sombra=sombra, borda=borda)
 
         def botao(pai, texto, cmd, tipo="suave", **kw):
             cores_ = {"escuro": (INK, "#FFFFFF"), "roxo": (ROXO, "#FFFFFF"), "azul": (BLUE, "#FFFFFF"),
                       "suave": (SOFT, BLUE), "neutro": (SOFT, INK)}
             bgc, fgc = cores_[tipo]
-            opts = dict(text=texto, command=cmd, font=(FONT, 10, "bold"), relief="flat", bd=0, bg=bgc, fg=fgc,
-                        activebackground=bgc, activeforeground=fgc, cursor="hand2", padx=14, pady=5)
+            opts = dict(text=texto, command=cmd, font=(FONT, 10, "bold"), bg=bgc, fg=fgc, padx=14, pady=5, fundo=PAPER)
             opts.update(kw)
-            return tk.Button(pai, **opts)
+            return tema.Pilula(pai, **opts)
 
-        def cartao(pai, cor=None):
-            f = tk.Frame(pai, bg=PAPER, highlightbackground=borda, highlightthickness=1)
-            if cor:
-                tk.Frame(f, width=5, bg=cor).pack(side="left", fill="y")
-            corpo = tk.Frame(f, bg=PAPER)
-            corpo.pack(side="left", fill="both", expand=True)
-            return f, corpo
+        def cartao(pai):
+            f = tk.Frame(pai, bg=PAPER)
+            return f, f
 
-        # --- topo fixo: relógio, pausa, placar (cada bloco num cartão)
+        # --- topo fixo: relógio e botões (um cartão compacto)
         topc = tk.Canvas(w, bg=solido, highlightthickness=0, height=10)
         topc.pack(side="top", fill="x")
-        g1 = topc.create_image(0, 0, anchor="nw")
-        topc.tag_lower(g1)
-        ptop = tema.Pilha(topc, ao_medir=lambda y: topc.configure(height=y - 4) if int(topc.cget("height")) != y - 4 else None)
+        g1 = topc.create_image(0, 0, anchor="nw", tags=("fundo",))
+        ptop = tema.Pilha(topc, ao_medir=lambda y: topc.configure(height=y - 6) if int(topc.cget("height")) != y - 6 else None, **estilo)
 
-        c_top, top = cartao(topc, PINK)
+        c_top, top = cartao(topc)
         ptop.add(c_top)
         row1 = tk.Frame(top, bg=PAPER)
-        row1.pack(fill="x", padx=14, pady=(8, 0))
+        row1.pack(fill="x", padx=8, pady=(2, 0))
         left = tk.Frame(row1, bg=PAPER)
-        left.pack(side="left")
-        W["date"] = tk.Label(left, text="", font=(FONT, 10), bg=PAPER, fg=GREY, anchor="w")
+        left.pack(side="left", anchor="n")
+        W["date"] = tk.Label(left, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
         W["date"].pack(fill="x")
-        W["clock"] = tk.Label(left, text="", font=(FONT, 38, "bold"), bg=PAPER, fg=INK, anchor="w")
-        W["clock"].pack(fill="x")
-        W["phase"] = tk.Label(left, text="", font=(FONT, 11, "bold"), bg=PAPER, fg=INK, anchor="w")
-        W["phase"].pack(fill="x")
-        W["emp"] = tk.Label(left, text="", font=(FONT, 10), bg=PAPER, fg=BLUE, anchor="w")
+        clk = tk.Frame(left, bg=PAPER)
+        clk.pack(fill="x")
+        W["clock"] = tk.Label(clk, text="", font=(FONT, 26, "bold"), bg=PAPER, fg=INK, anchor="w")
+        W["clock"].pack(side="left")
+        W["phase"] = tk.Label(clk, text="", font=(FONT, 10, "bold"), bg=PAPER, fg=GREY, anchor="sw")
+        W["phase"].pack(side="left", padx=(10, 0), pady=(10, 0))
+        W["emp"] = tk.Label(left, text="", font=(FONT, 9), bg=PAPER, fg=BLUE, anchor="w")
         W["emp"].pack(fill="x")
+        W["pts"] = tk.Label(left, text="", font=(FONT, 9, "bold"), bg=PAPER, fg=INK, anchor="w")
+        W["nivel"] = tk.Label(left, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
         right = tk.Frame(row1, bg=PAPER)
-        right.pack(side="right", anchor="ne")
-        botao(right, "Relatório do dia", self.generate_report, "escuro").pack(fill="x", pady=(0, 4))
-        botao(right, "Configurações", self.open_settings, "neutro").pack(fill="x")
-        botao(right, "Agenda (entregas e avisos)", self.open_agenda, "roxo").pack(fill="x", pady=(4, 0))
-        botao(right, "Horário de hoje", self.open_hoje, "suave").pack(fill="x", pady=(4, 0))
-        W["btn_emp"] = botao(right, "Trocar funcionário", self.open_switch, "suave")
-        W["hold"] = tk.Button(top, text="", command=lambda: self.set_hold(not self.holding()), font=(FONT, 12, "bold"),
-                              relief="flat", bd=0, cursor="hand2", pady=9)
-        W["hold"].pack(fill="x", padx=14, pady=(10, 12))
+        right.pack(side="right", anchor="n", pady=(4, 0))
+        r1 = tk.Frame(right, bg=PAPER)
+        r1.pack(anchor="e")
+        r2 = tk.Frame(right, bg=PAPER)
+        r2.pack(anchor="e", pady=(5, 0))
+        botao(r1, "Relatório do dia", self.generate_report, "escuro", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
+        botao(r1, "Configurações", self.open_settings, "neutro", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
+        botao(r1, "Agenda", self.open_agenda, "roxo", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left")
+        botao(r2, "Horário de hoje", self.open_hoje, "suave", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
+        W["btn_emp"] = botao(r2, "Trocar funcionário", self.open_switch, "suave", font=(FONT, 9, "bold"), padx=10, pady=4)
+        W["btn_emp_pai"] = r2
+        W["hold"] = tema.Pilula(top, text="", command=lambda: self.set_hold(not self.holding()), bg=SOFT, fg=BLUE,
+                                font=(FONT, 10, "bold"), pady=6, raio=14, fundo=PAPER)
+        W["hold"].pack(fill="x", padx=8, pady=(8, 2))
+        W["bar"] = tk.Canvas(w, height=1, highlightthickness=0)      # (barra semanal antiga: não é mais exibida)
 
-        c_pf, pf = cartao(topc, ROXO)
-        ptop.add(c_pf)
-        W["pts"] = tk.Label(pf, text="", font=(FONT, 13, "bold"), bg=PAPER, fg=INK, anchor="w")
-        W["pts"].pack(fill="x", padx=12, pady=(8, 0))
-        W["nivel"] = tk.Label(pf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
-        W["nivel"].pack(fill="x", padx=12)
-        W["bar"] = tk.Canvas(pf, height=12, bg="#E9EDF2", highlightthickness=0)
-        W["bar"].pack(fill="x", padx=12, pady=(6, 2))
-        W["week"] = tk.Label(pf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
-        W["week"].pack(fill="x", padx=12, pady=(0, 4))
-        W["prog"] = tk.Label(pf, text="", font=(FONT, 10), bg=PAPER, fg=GREY, anchor="w")
-        W["prog"].pack(fill="x", padx=12, pady=(0, 8))
-
-        W["stats"] = tk.Label(w, text="", font=("Consolas", 9), bg=solido, fg=fundo_txt, anchor="w")
-        W["stats"].pack(side="bottom", fill="x", padx=18, pady=6)
+        # --- rodapé: só a linha de progresso do dia + textos pequenos
+        rod = tk.Frame(w, bg=solido)
+        rod.pack(side="bottom", fill="x")
+        W["dbar"] = tk.Canvas(rod, height=4, bg=tema.mistura(mid, "#FFFFFF", 0.35) if not escuro else "#3A455C", highlightthickness=0)
+        W["dbar"].pack(fill="x", padx=18, pady=(4, 0))
+        W["dbar_cor"] = (tema.mistura(mid, "#FFFFFF", 0.35) if not escuro else "#3A455C")
+        linha = tk.Frame(rod, bg=solido)
+        linha.pack(fill="x", padx=18, pady=(2, 5))
+        W["prog"] = tk.Label(linha, text="", font=(FONT, 9), bg=solido, fg=fundo_txt, anchor="w")
+        W["prog"].pack(side="left")
+        W["week"] = tk.Label(linha, text="", font=(FONT, 9), bg=solido, fg=fundo_txt, anchor="w")
+        W["week"].pack(side="left", padx=(14, 0))
+        W["stats"] = tk.Label(linha, text="", font=(FONT, 9), bg=solido, fg=fundo_txt, anchor="e")
+        W["stats"].pack(side="right")
 
         # --- área com rolagem (os cartões flutuam sobre o fundo)
         body = tk.Frame(w, bg=solido)
         body.pack(fill="both", expand=True)
         cv = tk.Canvas(body, bg=solido, highlightthickness=0)
         sb = tk.Scrollbar(body, orient="vertical", command=cv.yview)
-        g2 = cv.create_image(0, 0, anchor="nw")
-        cv.tag_lower(g2)
+        g2 = cv.create_image(0, 0, anchor="nw", tags=("fundo",))
 
         def rolou(a, b):
             sb.set(a, b)
@@ -3388,7 +3393,7 @@ class App:
 
         def medido(y):
             cv.configure(scrollregion=(0, 0, max(1, cv.winfo_width()), y))
-        pila = tema.Pilha(cv, ao_medir=medido)
+        pila = tema.Pilha(cv, ao_medir=medido, **estilo)
         imgs = {}
 
         def pintar():
@@ -3432,62 +3437,62 @@ class App:
         w.bind("<Button-5>", wheel)
 
         def section(title, hours, cor=PINK):
-            f, corpo = cartao(cv, cor)
+            f, corpo = cartao(cv)
             pila.add(f)
             hdr = tk.Frame(corpo, bg=PAPER)
-            hdr.pack(fill="x", padx=14, pady=(10, 4))
-            tk.Label(hdr, text=title.upper(), font=(FONT, 15, "bold"), bg=PAPER, fg=INK).pack(side="left")
-            tk.Label(hdr, text=hours, font=("Consolas", 10), bg=SOFT, fg=GREY, padx=8, pady=1).pack(side="left", padx=10)
+            hdr.pack(fill="x", padx=8, pady=(4, 4))
+            tk.Label(hdr, text=title, font=(FONT, 13, "bold"), bg=PAPER, fg=INK).pack(side="left")
+            tk.Label(hdr, text=hours, font=(FONT, 9), bg=SOFT, fg=GREY, padx=9, pady=1).pack(side="left", padx=10)
             return corpo
         a, p = self.cfg["ao_chegar_horario"], self.cfg["tarde_horario"]
         fa = section("Ao chegar", "%s – %s" % tuple(a), ORANGE)
         for iid, name in self.cfg["ao_chegar"]:
             var = tk.BooleanVar(value=bool(self.state["am"].get(iid)))
-            tk.Checkbutton(fa, text=name, variable=var, font=(FONT, 13), bg=PAPER, activebackground=PAPER,
-                           anchor="w", cursor="hand2", command=lambda i=iid, v=var: self.set_am(i, v.get())).pack(fill="x", padx=14, pady=2)
+            tema.Marca(fa, text=name, variable=var, font=(FONT, 12), fundo=PAPER, fg=INK, cor=GREEN,
+                       command=lambda i=iid, v=var: self.set_am(i, v.get())).pack(fill="x", padx=8, pady=1)
             W["am"][iid] = var
-        tk.Frame(fa, height=6, bg=PAPER).pack()
+        tk.Frame(fa, height=4, bg=PAPER).pack()
 
         fp = section("Tarde", "%s – %s" % tuple(p), BLUE)
-        tk.Label(fp, text="CAIXA DE HORA EM HORA", font=(FONT, 8, "bold"), bg=PAPER, fg=GREY, anchor="w").pack(fill="x", padx=14)
+        tk.Label(fp, text="Caixa de hora em hora", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w").pack(fill="x", padx=8)
         chips = tk.Frame(fp, bg=PAPER)
-        chips.pack(fill="x", padx=14, pady=(2, 8))
+        chips.pack(fill="x", padx=8, pady=(3, 10))
         for hh in self.cfg["horas_caixa"]:
-            b = tk.Button(chips, text="", font=(FONT, 10, "bold"), relief="flat", bd=0, cursor="hand2", width=12, pady=6,
-                          command=lambda hh=hh: self.toggle_cx(hh))
-            b.pack(side="left", padx=3)
+            b = tema.Pilula(chips, text="", font=(FONT, 9, "bold"), minw=96, pady=5, raio=12, fundo=PAPER,
+                            command=lambda hh=hh: self.toggle_cx(hh))
+            b.pack(side="left", padx=(0, 6))
             W["cx"][hh] = b
-        tk.Label(fp, text="CONFERÊNCIAS DO DIA", font=(FONT, 8, "bold"), bg=PAPER, fg=GREY, anchor="w").pack(fill="x", padx=14)
+        tk.Label(fp, text="Conferências do dia", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w").pack(fill="x", padx=8)
         for cid, name, note in self.cfg["conferencias"]:
             row = tk.Frame(fp, bg=PAPER)
-            row.pack(fill="x", padx=14, pady=4)
+            row.pack(fill="x", padx=8, pady=5)
             lf = tk.Frame(row, bg=PAPER)
             lf.pack(side="left", fill="x", expand=True)
-            tk.Label(lf, text=name, font=(FONT, 13, "bold"), bg=PAPER, fg=INK, anchor="w").pack(fill="x")
+            tk.Label(lf, text=name, font=(FONT, 12, "bold"), bg=PAPER, fg=INK, anchor="w").pack(fill="x")
             if note:
                 tk.Label(lf, text=note, font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w", wraplength=360, justify="left").pack(fill="x")
-            st = tk.Label(lf, text="", font=("Consolas", 9), bg=PAPER, fg=GREY, anchor="w")
+            st = tk.Label(lf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
             st.pack(fill="x")
-            botao(row, "Conferi", lambda c=cid: self.set_conf(c), "azul", font=(FONT, 11, "bold"), padx=16, pady=6).pack(side="right")
+            botao(row, "Conferi", lambda c=cid: self.set_conf(c), "azul", font=(FONT, 10, "bold"), padx=16, pady=6).pack(side="right")
             W["conf"][cid] = st
-        tk.Frame(fp, height=6, bg=PAPER).pack()
+        tk.Frame(fp, height=4, bg=PAPER).pack()
 
         lems = lembretes_cfg(self.cfg)
         if lems:
             fl = section("Lembretes", "maquininha e outros", ROXO)
             for lid, mn, nome, texto, curto in lems:
                 row = tk.Frame(fl, bg=PAPER)
-                row.pack(fill="x", padx=14, pady=4)
+                row.pack(fill="x", padx=8, pady=5)
                 lf = tk.Frame(row, bg=PAPER)
                 lf.pack(side="left", fill="x", expand=True)
-                tk.Label(lf, text=nome, font=(FONT, 13, "bold"), bg=PAPER, fg=INK, anchor="w").pack(fill="x")
-                st = tk.Label(lf, text="", font=("Consolas", 9), bg=PAPER, fg=GREY, anchor="w")
+                tk.Label(lf, text=nome, font=(FONT, 12, "bold"), bg=PAPER, fg=INK, anchor="w").pack(fill="x")
+                st = tk.Label(lf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
                 st.pack(fill="x")
-                bt = botao(row, "Feito", lambda i=lid: self.set_lem(i), "azul", font=(FONT, 11, "bold"), padx=16, pady=6)
+                bt = botao(row, "Feito", lambda i=lid: self.set_lem(i), "azul", font=(FONT, 10, "bold"), padx=16, pady=6)
                 bt.pack(side="right")
                 W["lem"][lid] = st
                 W["lem_btn"][lid] = bt
-            tk.Frame(fl, height=6, bg=PAPER).pack()
+            tk.Frame(fl, height=4, bg=PAPER).pack()
         tema.polir(w)
         self.refresh()
 
@@ -3598,6 +3603,14 @@ class App:
                 bt.config(text="Feito", bg=BLUE, fg="#FFFFFF")
         done, total = self.counts()
         W["prog"].config(text="%d de %d tarefas do dia" % (done, total))
+        try:
+            db = W["dbar"]
+            db.delete("all")
+            wd = max(db.winfo_width(), 10)
+            frac = (done / float(total)) if total else 0
+            db.create_rectangle(0, 0, int(wd * frac), 4, fill=GREEN if frac >= 1 else PINK, outline="")
+        except Exception:
+            pass
         if self.holding():
             left = int(self.hold_until - time.time())
             W["hold"].config(text="Atendendo · avisos em pausa (%d:%02d) · toque para voltar" % (left // 60, left % 60), bg=BLUE, fg="#FFFFFF")
@@ -3608,7 +3621,7 @@ class App:
         emp = self.current_emp()
         W["emp"].config(text=("No caixa agora: %s%s" % (emp["nome"], " (escolhido à mão)" if self.state.get("func_manual") else "")) if emp else "")
         if emp:
-            W["btn_emp"].pack(fill="x", pady=(4, 0))
+            W["btn_emp"].pack(side="left")
         else:
             W["btn_emp"].pack_forget()
         if self.cfg.get("mostrar_pontos", True):
@@ -3622,7 +3635,7 @@ class App:
                 bar.delete("all")
                 wd = max(bar.winfo_width(), 10)
                 bar.create_rectangle(0, 0, int(wd * frac), 12, fill=GREEN if frac >= 1 else PINK, outline="")
-                W["week"].config(text="Semana: %d de %d pontos%s · %s" % (si["semana"], meta, " (meta batida!)" if frac >= 1 else "", si["premio"]))
+                W["week"].config(text="Semana: %d de %d pontos%s" % (si["semana"], meta, " (meta batida!)" if frac >= 1 else ""))
             else:
                 W["bar"].delete("all")
                 W["week"].config(text="")
@@ -3630,6 +3643,14 @@ class App:
             for k in ("pts", "nivel", "week"):
                 W[k].config(text="")
             W["bar"].delete("all")
+        for k in ("pts",):
+            try:
+                if W[k].cget("text") and not W[k].winfo_ismapped():
+                    W[k].pack(fill="x")
+                elif not W[k].cget("text") and W[k].winfo_ismapped():
+                    W[k].pack_forget()
+            except Exception:
+                pass
 
     # ---- configurações
     def open_settings(self):

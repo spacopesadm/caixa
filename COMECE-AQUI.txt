@@ -94,3 +94,9 @@ VERSÃO 24 - VISUAL NOVO DO PAINEL
 - Painel do caixa mais elegante: cada bloco (relógio e botões, pontos, Ao chegar, Tarde, Lembretes) fica num cartão retangular branco com uma faixa colorida ao lado, flutuando sobre o fundo.
 - Fundo personalizável: em Configurações > aba "Aparência" escolha um tema pronto (Azul claro, Rosa Spaço, Lavanda, Menta, Pôr do sol, Grafite, Noite, Branco) ou escolha suas 2 cores e o tipo de degradê (vertical, horizontal, diagonal ou cor lisa). Tem uma prévia na hora. Vale só para este computador.
 - Botões mais bonitos (planos, sem borda, mudam de cor ao passar o mouse) no painel e na Agenda.
+
+VERSÃO 25 - VISUAL MAIS LIMPO
+- Cartões com cantos arredondados e sombra suave; cabeçalho bem menor (relógio, botões lado a lado).
+- A barra de progresso agora é só uma linha fina no rodapé, com "X de Y tarefas do dia" ao lado.
+- Caixas de seleção arredondadas (verdes ao marcar) e botões arredondados em todo o programa.
+- Nas Configurações, os nomes das abas ficaram curtos para caber na tela.
