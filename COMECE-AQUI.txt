@@ -84,3 +84,8 @@ VERSÃO 22
 - Entregas: nova opção "Qualquer horário" (site e Agenda do computador). Aparece no fim do roteiro do dia.
 - Configurações > "Vendedores e bairros": nomes de vendedores e bairros novos ficam guardados sozinhos e podem ser corrigidos ali. O site sugere os bairros guardados.
 - Agenda do computador: formulário de entrega/condicional/troca igual ao do site (vendedor, cliente, telefone, bairro com sugestão, endereço, referência, CEP, horário). Acabou o erro "sem endereço" ao imprimir. Entregas antigas sem endereço: dê 2 cliques e preencha.
+
+VERSÃO 23 - AGENDA EM ABAS E ROTEIRO POR HORÁRIO
+- Agenda do computador agora tem 3 abas: "Agendar", "Agendados" e "Roteiro do dia".
+- Agendados: lista por dia com caixa de seleção (☐ = a fazer, ☑ = feito). Clique na caixinha para marcar; clique de novo para desmarcar. Filtros: hoje, amanhã, não feitos etc. Linhas atrasadas em vermelho, entregas em lilás.
+- Roteiro do dia: por horário, um cliente por linha (nome, tipo, bairro, telefone, vendedor) com o endereço logo abaixo. Setas ◀ ▶ para trocar o dia. Também dá para marcar como feito ali. Botões: imprimir e copiar para o WhatsApp.

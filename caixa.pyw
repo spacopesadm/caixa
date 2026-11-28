@@ -2604,7 +2604,21 @@ class App:
         OUTRO = "Outro horário (digitar)"
         janelas = list(self.cfg.get("janelas_entrega") or []) + [agenda.QUALQUER, OUTRO]
         E["jan"].set(janelas[0])
-        f = tk.Frame(w, bg=BG)
+        w.minsize(920, 600)
+        rodape = tk.Frame(w, bg=BG)
+        rodape.pack(side="bottom", fill="x", padx=16, pady=(0, 10))
+        tk.Button(rodape, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=14, pady=4, cursor="hand2").pack(side="right")
+        st = ttk.Style(w)
+        st.configure("Ag.Treeview", rowheight=28, font=(FONT, 10))
+        st.configure("Ag.Treeview.Heading", font=(FONT, 10, "bold"))
+        st.configure("TNotebook.Tab", font=(FONT, 11, "bold"), padding=(18, 7))
+        nb = ttk.Notebook(w)
+        nb.pack(fill="both", expand=True, padx=10, pady=(10, 4))
+        tab_a, tab_l, tab_r = tk.Frame(nb, bg=BG), tk.Frame(nb, bg=BG), tk.Frame(nb, bg=BG)
+        nb.add(tab_a, text="  Agendar  ")
+        nb.add(tab_l, text="  Agendados  ")
+        nb.add(tab_r, text="  Roteiro do dia  ")
+        f = tk.Frame(tab_a, bg=BG)
         f.pack(fill="x", padx=16, pady=(14, 6))
         tk.Label(f, text="Novo agendamento", font=(FONT, 12, "bold"), bg=BG, fg=INK).grid(row=0, column=0, columnspan=6, sticky="w")
         tk.Label(f, text="O que é", font=(FONT, 9), bg=BG, fg=GREY).grid(row=1, column=0, sticky="w", pady=(8, 0))
@@ -2713,15 +2727,181 @@ class App:
         ent_b.bind("<KeyRelease>", sugerir)
         sug.bind("<<ListboxSelect>>", escolher_bairro)
 
-        cols = ("quando", "tipo", "titulo", "status")
-        tv = ttk.Treeview(w, columns=cols, show="headings", height=7, selectmode="browse")
-        for c, t, wd in (("quando", "Quando", 120), ("tipo", "Tipo", 130), ("titulo", "O que", 380), ("status", "Situação", 90)):
+        # ---------------- aba AGENDADOS: lista com caixa de seleção (☐/☑ = feito)
+        fl = tk.Frame(tab_l, bg=BG)
+        fl.pack(fill="x", padx=16, pady=(12, 4))
+        tk.Label(fl, text="Mostrar:", bg=BG, fg=GREY, font=(FONT, 10)).pack(side="left")
+        FILTROS = ["Hoje, próximos e atrasados", "Só hoje", "Só amanhã", "Últimos 3 dias e próximos", "Só os não feitos"]
+        filtro = tk.StringVar(value=FILTROS[0])
+        cbf = ttk.Combobox(fl, textvariable=filtro, values=FILTROS, width=28, state="readonly")
+        cbf.pack(side="left", padx=8)
+        resumo = tk.Label(fl, text="", bg=BG, fg=GREY, font=(FONT, 10, "bold"))
+        resumo.pack(side="right")
+        tk.Label(tab_l, text="Clique na caixinha ☐ para marcar como feito (☑). Clique de novo para desmarcar. Dê 2 cliques numa linha para editar.",
+                 bg=BG, fg=GREY, font=(FONT, 9)).pack(anchor="w", padx=16)
+        cols = ("ok", "quando", "tipo", "cliente", "bairro", "tel", "vend")
+        tvf = tk.Frame(tab_l, bg=BG)
+        tvf.pack(fill="both", expand=True, padx=16, pady=(6, 4))
+        tv = ttk.Treeview(tvf, columns=cols, show="headings", height=12, selectmode="browse", style="Ag.Treeview")
+        sbv = ttk.Scrollbar(tvf, orient="vertical", command=tv.yview)
+        tv.configure(yscrollcommand=sbv.set)
+        for c, t, wd, an in (("ok", "Feito", 56, "center"), ("quando", "Horário", 140, "w"), ("tipo", "Tipo", 130, "w"), ("cliente", "Cliente / assunto", 230, "w"),
+                             ("bairro", "Bairro", 130, "w"), ("tel", "Telefone", 120, "w"), ("vend", "Vendedor(a)", 100, "w")):
             tv.heading(c, text=t)
-            tv.column(c, width=wd, anchor="w")
-        tv.tag_configure("entrega", background="#EDE4FF")
+            tv.column(c, width=wd, anchor=an, stretch=(c == "cliente"))
+        tv.tag_configure("dia", background="#2D2A4A", foreground="#FFFFFF", font=(FONT, 10, "bold"))
+        tv.tag_configure("entrega", background="#F1EAFF")
         tv.tag_configure("atrasado", background="#FDE2E2")
-        tv.tag_configure("feito", foreground="#8A94A3")
-        tv.pack(fill="both", expand=True, padx=16, pady=(6, 4))
+        tv.tag_configure("feito", foreground="#9AA3AF", background="#F3F4F6")
+        tv.pack(side="left", fill="both", expand=True)
+        sbv.pack(side="right", fill="y")
+        msgl = tk.Label(tab_l, text="", font=(FONT, 9), bg=BG, fg=RED, anchor="w", justify="left", wraplength=800)
+        msgl.pack(fill="x", padx=16)
+        DIAS_P = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+
+        def nome_dia(iso):
+            d = dt.date.fromisoformat(iso)
+            h = dt.date.today()
+            ref = "Hoje" if d == h else ("Amanhã" if d == h + dt.timedelta(days=1) else ("Ontem" if d == h - dt.timedelta(days=1) else DIAS_P[d.weekday()].capitalize()))
+            return "%s · %s" % (ref, agenda.data_br(iso))
+
+        def quando_txt(it):
+            if it.get("janela"):
+                return agenda.rotulo_janela(it["janela"]).replace(" às ", "–").replace(" (horário específico)", "")
+            return it["hora"]
+
+        def recarregar_lista():
+            tv.delete(*tv.get_children())
+            hoje = today()
+            amanha = (dt.date.today() + dt.timedelta(days=1)).isoformat()
+            corte = (dt.date.today() - dt.timedelta(days=3)).isoformat()
+            agora = time.time()
+            modo = filtro.get()
+            pend = feitos = 0
+            ultimo = None
+            itens = []
+            for it in sorted(agenda.vivos(self.agenda), key=agenda.chave_roteiro):
+                d, fe_ = it["data"], bool(it.get("feito"))
+                if modo == FILTROS[0]:
+                    ok = d >= hoje or (not fe_ and d >= corte)
+                elif modo == FILTROS[1]:
+                    ok = d == hoje
+                elif modo == FILTROS[2]:
+                    ok = d == amanha
+                elif modo == FILTROS[3]:
+                    ok = d >= corte
+                else:
+                    ok = not fe_ and d >= corte
+                if ok:
+                    itens.append(it)
+            contagem = {}
+            for it in itens:
+                contagem[it["data"]] = contagem.get(it["data"], 0) + 1
+            for it in itens:
+                if it["data"] != ultimo:
+                    ultimo = it["data"]
+                    tv.insert("", "end", iid="dia-" + ultimo, tags=("dia",), values=("", nome_dia(ultimo) + "   (%d)" % contagem[ultimo], "", "", "", "", ""))
+                if it.get("feito"):
+                    feitos += 1
+                    tag = "feito"
+                else:
+                    pend += 1
+                    atras = it["data"] < hoje or (it["data"] == hoje and agenda.prazo(it) < agora)
+                    tag = "atrasado" if atras else ("entrega" if it.get("janela") else "")
+                tv.insert("", "end", iid=it["id"], tags=(tag,) if tag else (),
+                          values=("☑" if it.get("feito") else "☐", quando_txt(it), it["tipo"], it.get("cliente") or it["titulo"], it.get("bairro", ""),
+                                  it.get("telefone", ""), it.get("vendedor", "")))
+            resumo.configure(text="%d a fazer · %d feitos" % (pend, feitos))
+        filtro.trace_add("write", lambda *_: recarregar_lista())
+
+        def alternar(iid):
+            it = next((x for x in self.agenda if x["id"] == iid), None)
+            if not it:
+                return
+            if it.get("feito"):
+                self.ag_est.pop(iid, None)
+                self.ag_gravar(dict(it, feito=False))
+            else:
+                self.ag_feito(iid)
+            recarregar()
+
+        def clique(e):
+            if tv.identify_region(e.x, e.y) == "cell" and tv.identify_column(e.x) == "#1":
+                row = tv.identify_row(e.y)
+                if row and not row.startswith("dia-"):
+                    alternar(row)
+                    return "break"
+        tv.bind("<Button-1>", clique, add="+")
+
+        # ---------------- aba ROTEIRO DO DIA: por horário, um cliente por linha
+        fr = tk.Frame(tab_r, bg=BG)
+        fr.pack(fill="x", padx=16, pady=(12, 4))
+        rdata = tk.StringVar(value=agenda.data_br(today()))
+
+        def rd_dia():
+            try:
+                return agenda.parse_data(rdata.get())
+            except ValueError:
+                return today()
+
+        def mover(n):
+            rdata.set(agenda.data_br((dt.date.fromisoformat(rd_dia()) + dt.timedelta(days=n)).isoformat()))
+            roteiro_view()
+        tk.Button(fr, text="◀", command=lambda: mover(-1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
+        er = ttk.Entry(fr, textvariable=rdata, width=12, font=(FONT, 12, "bold"), justify="center")
+        er.pack(side="left", padx=6)
+        er.bind("<Return>", lambda _e: roteiro_view())
+        tk.Button(fr, text="▶", command=lambda: mover(1), relief="flat", font=(FONT, 11, "bold"), width=3, cursor="hand2").pack(side="left")
+        tk.Button(fr, text="Hoje", command=lambda: (rdata.set(agenda.data_br(today())), roteiro_view()), relief="flat", font=(FONT, 10), padx=10, cursor="hand2").pack(side="left", padx=8)
+        rres = tk.Label(fr, text="", bg=BG, fg=GREY, font=(FONT, 10, "bold"))
+        rres.pack(side="right")
+        rtf = tk.Frame(tab_r, bg=BG)
+        rtf.pack(fill="both", expand=True, padx=16, pady=(4, 4))
+        rtx = tk.Text(rtf, wrap="word", font=(FONT, 11), bg="#FFFFFF", relief="flat", padx=14, pady=10, cursor="arrow", height=16)
+        rsb = ttk.Scrollbar(rtf, orient="vertical", command=rtx.yview)
+        rtx.configure(yscrollcommand=rsb.set)
+        rtx.pack(side="left", fill="both", expand=True)
+        rsb.pack(side="right", fill="y")
+        rtx.tag_configure("h", font=(FONT, 13, "bold"), foreground="#FFFFFF", background=ROXO, spacing1=12, spacing3=4, lmargin1=4, lmargin2=4)
+        rtx.tag_configure("n", font=(FONT, 11, "bold"), foreground=INK)
+        rtx.tag_configure("m", foreground=GREY, font=(FONT, 10))
+        rtx.tag_configure("e", foreground="#4B5563", font=(FONT, 10), lmargin1=36, lmargin2=36, spacing3=6)
+        rtx.tag_configure("f", foreground="#9AA3AF", overstrike=True)
+        rtx.tag_configure("box", font=(FONT, 14), foreground=ROXO)
+
+        def roteiro_view():
+            iso = rd_dia()
+            rtx.configure(state="normal")
+            rtx.delete("1.0", "end")
+            grupos = agenda.roteiro_grupos(self.agenda, iso)
+            tot = sum(len(g) for _r, g in grupos)
+            fei = sum(1 for _r, g in grupos for x in g if x.get("feito"))
+            rres.configure(text="%d agendamentos · %d feitos" % (tot, fei) if tot else "")
+            if not grupos:
+                rtx.insert("end", "\nNenhuma entrega, condicional ou troca agendada para %s." % agenda.data_br(iso), "m")
+            n = 0
+            for rot, its in grupos:
+                rtx.insert("end", " %s  (%d) \n" % (rot, len(its)), "h")
+                for it in its:
+                    n += 1
+                    tg = "cb%d" % n
+                    rtx.insert("end", "☑ " if it.get("feito") else "☐ ", ("box", tg))
+                    rtx.tag_bind(tg, "<Button-1>", lambda _e, i=it["id"]: alternar(i))
+                    rtx.tag_bind(tg, "<Enter>", lambda _e: rtx.configure(cursor="hand2"))
+                    rtx.tag_bind(tg, "<Leave>", lambda _e: rtx.configure(cursor="arrow"))
+                    ft = ("f",) if it.get("feito") else ()
+                    rtx.insert("end", it.get("cliente") or it.get("titulo", ""), ("n",) + ft)
+                    resto = "   %s · %s%s%s" % (it.get("tipo", ""), (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")),
+                                                ("  ·  " + it["telefone"]) if it.get("telefone") else "", ("  ·  " + it["vendedor"]) if it.get("vendedor") else "")
+                    rtx.insert("end", resto + "\n", ("m",) + ft)
+                    end = agenda.linha_endereco(it)
+                    if end:
+                        rtx.insert("end", end + "\n", ("e",) + ft)
+            rtx.configure(state="disabled")
+
+        def recarregar():
+            recarregar_lista()
+            roteiro_view()
         ordem = []
 
         def limpar_form():
@@ -2745,26 +2925,6 @@ class App:
             btn_add.configure(text="Adicionar")
             mostrar_form()
 
-        def recarregar():
-            tv.delete(*tv.get_children())
-            ordem.clear()
-            corte = (dt.date.today() - dt.timedelta(days=3)).isoformat()
-            hoje = today()
-            agora = time.time()
-            for it in sorted(agenda.vivos(self.agenda), key=agenda.chave_roteiro):
-                if it["data"] < corte:
-                    continue
-                if it.get("feito"):
-                    st = "Feito"
-                elif it["data"] < hoje or (it["data"] == hoje and agenda.prazo(it) < agora):
-                    st = "Atrasado" if it["data"] <= hoje else ""
-                elif it["data"] == hoje:
-                    st = "Hoje"
-                else:
-                    st = ""
-                ordem.append(it["id"])
-                tag = "feito" if it.get("feito") else ("atrasado" if st == "Atrasado" else ("entrega" if it.get("janela") else ""))
-                tv.insert("", "end", iid=it["id"], tags=(tag,), values=("%s %s" % (agenda.data_br(it["data"])[:5], (it.get("janela") or it["hora"]).replace("-", "–")), it["tipo"], it["titulo"], st))
         w.recarregar = recarregar
 
         def adicionar():
@@ -2846,6 +3006,7 @@ class App:
                 det.insert("1.0", it.get("detalhe", ""))
             btn_add.configure(text="Salvar alteração")
             mostrar_form()
+            nb.select(tab_a)
 
         def marcar():
             it = selecionado()
@@ -2860,37 +3021,36 @@ class App:
                 if edit["id"] == it["id"]:
                     limpar_form()
                 recarregar()
-        tv.bind("<Double-1>", editar)
+        tv.bind("<Double-1>", lambda e: clique(e) or editar(e))      # 2 cliques na caixinha = marca/desmarca; no resto da linha = editar
         btn_add = tk.Button(bar, text="Adicionar", command=adicionar, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=16, pady=4, cursor="hand2")
         btn_add.pack(side="left")
         tk.Button(bar, text="Limpar", command=limpar_form, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
-        b2 = tk.Frame(w, bg=BG)
-        b2.pack(fill="x", padx=16, pady=(0, 14))
-        tk.Button(b2, text="Marcar como feito", command=marcar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
-        tk.Button(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        b2 = tk.Frame(tab_l, bg=BG)
+        b2.pack(fill="x", padx=16, pady=(0, 10))
+        tk.Button(b2, text="Editar (ou 2 cliques)", command=editar, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
         def copiar_roteiro():
-            it = selecionado()
-            iso = it["data"] if it else today()
+            iso = rd_dia()
             self.root.clipboard_clear()
             self.root.clipboard_append(agenda.roteiro_texto(self.agenda, iso))
-            msg.configure(text="Roteiro de %s copiado. Cole no WhatsApp ou no bloco de notas." % agenda.data_br(iso), fg=GREEN)
+            rres.configure(text="Roteiro de %s copiado. Cole no WhatsApp." % agenda.data_br(iso), fg=GREEN)
         def imprimir_sel():
             it = selecionado()
             if not it:
-                msg.configure(text="Escolha um item da lista para imprimir.", fg=RED)
+                msgl.configure(text="Escolha um item da lista para imprimir.", fg=RED)
             elif not it.get("endereco"):
-                msg.configure(text="Esse item não tem endereço. Dê 2 cliques nele, preencha o endereço e salve.", fg=RED)
+                msgl.configure(text="Esse item não tem endereço. Dê 2 cliques nele, preencha o endereço e salve.", fg=RED)
             else:
+                msgl.configure(text="")
                 self.ag_imprimir(it)
 
         def imprimir_dia():
-            it = selecionado()
-            self.ag_imprimir_roteiro(it["data"] if it else today())
+            self.ag_imprimir_roteiro(rd_dia())
         tk.Button(b2, text="Imprimir endereço", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
-        tk.Button(b2, text="Imprimir roteiro do dia", command=imprimir_dia, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
-        tk.Button(b2, text="Copiar roteiro do dia", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
-        tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left")
-        tk.Button(b2, text="Fechar", command=w.destroy, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="right")
+        tk.Button(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
+        br = tk.Frame(tab_r, bg=BG)
+        br.pack(fill="x", padx=16, pady=(0, 10))
+        tk.Button(br, text="Imprimir roteiro do dia", command=imprimir_dia, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=14, pady=5, cursor="hand2").pack(side="left")
+        tk.Button(br, text="Copiar para o WhatsApp", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="left", padx=8)
         recarregar()
         mostrar_form()
 

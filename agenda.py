@@ -144,22 +144,57 @@ def chave_roteiro(it):
     return (it["data"], it.get("janela") or it["hora"], z, it.get("bairro") or "", it.get("cliente") or it.get("titulo", ""))
 
 
-def roteiro_texto(lista, iso):
-    """Roteiro do dia: por janela de horário, entregas do mesmo bairro/zona juntas."""
+def rotulo_janela(j):
+    j = str(j or "")
+    if e_qualquer(j):
+        return QUALQUER
+    return j.replace("-", " às ") if "-" in j else "%s (horário específico)" % j
+
+
+def roteiro_grupos(lista, iso):
+    """[(rótulo do horário, [itens])] do dia: horários em ordem; dentro de cada um, zona (perto primeiro), bairro e nome."""
     itens = sorted([x for x in da_data(lista, iso) if x.get("janela")], key=chave_roteiro)
-    if not itens:
-        return "Nenhuma entrega/condicional/troca agendada para %s." % data_br(iso)
-    out = ["ROTEIRO %s" % data_br(iso)]
-    atual = None
+    grupos, ordem = {}, []
     for it in itens:
-        if it["janela"] != atual:
-            atual = it["janela"]
-            out += ["", "== %s ==" % atual.replace("-", " às ")]
-        out.append("- %s | %s | %s%s | %s | %s%s" % (it["tipo"], it.get("cliente", ""), it.get("bairro", ""),
-                   (" (Região %s)" % it["zona"]) if it.get("zona") else "", it.get("telefone", ""), it.get("vendedor", ""),
-                   " [FEITO]" if it.get("feito") else ""))
-        if it.get("detalhe"):
-            out.append("    " + it["detalhe"].replace("\n", " / "))
+        if it["janela"] not in grupos:
+            grupos[it["janela"]] = []
+            ordem.append(it["janela"])
+        grupos[it["janela"]].append(it)
+    return [(rotulo_janela(j), grupos[j]) for j in ordem]
+
+
+def linha_cliente(it, caixa=True):
+    """Uma linha por cliente: [ ] Nome | Tipo | Bairro (Rn) | Telefone | Vendedor."""
+    partes = [it.get("cliente") or it.get("titulo", ""), it.get("tipo", ""),
+              (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")).strip(), it.get("telefone", "")]
+    if it.get("vendedor"):
+        partes.append("Vend.: %s" % it["vendedor"])
+    return ("[X] " if it.get("feito") else "[ ] ") + " | ".join(p for p in partes if p)
+
+
+def linha_endereco(it):
+    t = it.get("endereco", "")
+    if it.get("referencia"):
+        t += " - ref.: %s" % it["referencia"]
+    if it.get("obs"):
+        t += " - obs.: %s" % str(it["obs"]).replace("\n", " / ")
+    return t.strip()
+
+
+def roteiro_texto(lista, iso):
+    """Roteiro do dia para imprimir/copiar: por horário, um cliente por linha (com o endereço logo abaixo)."""
+    grupos = roteiro_grupos(lista, iso)
+    if not grupos:
+        return "Nenhuma entrega/condicional/troca agendada para %s." % data_br(iso)
+    total = sum(len(g) for _r, g in grupos)
+    out = ["ROTEIRO %s - %d %s" % (data_br(iso), total, "agendamento" if total == 1 else "agendamentos")]
+    for rot, its in grupos:
+        out += ["", "== %s (%d) ==" % (rot, len(its))]
+        for it in its:
+            out.append(linha_cliente(it))
+            end = linha_endereco(it)
+            if end:
+                out.append("      " + end)
     return "\n".join(out)
 
 

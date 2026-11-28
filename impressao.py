@@ -86,6 +86,8 @@ def montar_roteiro(texto, colunas=48):
             t.texto(lin.strip("= ").strip(), negrito=True, grande=True)
         elif lin.startswith("ROTEIRO"):
             t.texto(lin, negrito=True, grande=True, centro=True)
+        elif lin.startswith("[ ]") or lin.startswith("[X]"):
+            t.texto(lin, negrito=True)
         else:
             t.texto(lin)
     return t.fim()
