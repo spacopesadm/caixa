@@ -99,10 +99,11 @@ function montarForm(){
     '<label>Endereço (rua, número, complemento) <i>*</i></label><input id="f_end" autocomplete="off" placeholder="Ex.: Rua das Flores, 120, apto 2">'+
     '<label>Ponto de referência</label><input id="f_ref" autocomplete="off" placeholder="Ex.: ao lado da padaria, portão azul">'+
     '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div></div>'+
-    '<div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
+    '<div id="w_dia"><div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
     '<div><label>Horário <i>*</i></label><select id="f_jan"></select></div></div>'+
     '<div id="w_esp" style="display:none"><label>Horário específico <i>*</i></label><input id="f_esp" type="time"></div>'+
-    '<div id="i_jan"></div>'+
+    '<div id="i_jan"></div></div>'+
+    '<div id="w_hoje" class="info i-n" style="display:none">Vem buscar fica agendado para hoje (dia do lançamento). Não precisa marcar dia nem horário.</div>'+
     '<label>Observações</label><textarea id="f_det" rows="2" placeholder="Ex.: levar maquininha, cliente só atende depois das 10h"></textarea>'+
     '<button class="go" id="b_enviar">Agendar</button><div id="f_msg"></div></div>'+
     '<div id="lista"></div>';
@@ -111,6 +112,8 @@ function montarForm(){
     document.getElementById("w_busca").style.display=b?"block":"none";
     document.getElementById("w_end").style.display=b?"none":"block";
     document.getElementById("i_tel").style.display=b?"none":"inline";
+    document.getElementById("w_dia").style.display=b?"none":"block";
+    document.getElementById("w_hoje").style.display=b?"block":"none";
     document.getElementById("b_enviar").textContent=b?"Agendar retirada":"Agendar";
     msg("")}
   document.getElementById("f_tipo").addEventListener("change",trocaTipo);
@@ -205,6 +208,7 @@ function enviar(){
   if(busca){
     f={vendedor:f.vendedor,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,data:f.data,janela:f.janela,detalhe:f.detalhe,
        quem_busca:val("f_quem").trim(),pago:val("f_pago"),pagamento:val("f_forma")};
+    f.data=iso(new Date());f.janela="Qualquer horário";
     if(tel&&(tel.length<10||tel.length>11))return msg("Telefone inválido. Use DDD + número ou deixe vazio.",true);
     if(!f.pago)return msg("Diga se já está pago (Sim ou Não).",true);
     if(f.pago==="Sim"&&!f.pagamento)return msg("Escolha como foi o pagamento.",true);

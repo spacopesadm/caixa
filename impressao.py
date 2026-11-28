@@ -78,6 +78,40 @@ def montar_endereco(it, colunas=48):
     return t.fim()
 
 
+def montar_retirada(it, colunas=48):
+    """Cupom do 'Vem buscar': quem é a cliente, quem vem pegar e como está o pagamento."""
+    t = Ticket(colunas)
+    t.texto("SPAÇO PÉS", negrito=True, grande=True, centro=True)
+    t.texto("VEM BUSCAR", negrito=True, grande=True, centro=True)
+    t.linha()
+    try:
+        data = dt.datetime.strptime(it["data"], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except Exception:
+        data = it.get("data", "")
+    t.texto("Lançado em %s" % data, negrito=True)
+    if it.get("vendedor"):
+        t.texto("Vendedor: %s" % it["vendedor"])
+    t.linha()
+    t.texto("CLIENTE", negrito=True)
+    t.texto(it.get("cliente") or it.get("titulo", ""), grande=True)
+    if it.get("telefone"):
+        t.texto("Telefone: %s" % it["telefone"])
+    t.texto("QUEM VEM PEGAR", negrito=True)
+    t.texto(it.get("quem_busca") or "A própria cliente", grande=True)
+    t.linha()
+    t.texto("PAGAMENTO", negrito=True)
+    pago = str(it.get("pago") or "").lower().startswith("s")
+    t.texto("PAGO" if pago else "A PAGAR NA RETIRADA", negrito=True, grande=True)
+    if it.get("pagamento"):
+        t.texto(("Forma: %s" if pago else "Vai pagar com: %s") % it["pagamento"])
+    if it.get("obs"):
+        t.linha()
+        t.texto("OBS: %s" % it["obs"])
+    t.linha()
+    t.texto("Impresso em %s" % dt.datetime.now().strftime("%d/%m %H:%M"), centro=True)
+    return t.fim()
+
+
 def montar_roteiro(texto, colunas=48):
     t = Ticket(colunas)
     for lin in texto.splitlines():

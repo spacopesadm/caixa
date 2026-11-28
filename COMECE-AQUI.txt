@@ -111,3 +111,7 @@ VERSÃO 27 - VEM BUSCAR, AVISO DE QUALQUER HORÁRIO E RELATÓRIO NOVO
 - Novo tipo de agendamento "Vem buscar" (na Agenda do computador e no site dos vendedores): nome da cliente, quem vem pegar, se já está pago (Sim/Não) e como foi o pagamento (Pix, cartão, dinheiro...). Não pede endereço. Aparece na lista, no roteiro e no aviso ("PAGO (Pix)" ou "A PAGAR na retirada").
 - Entrega com "Qualquer horário": o aviso no caixa agora se repete só de 2 em 2 horas (mudável em Configurações > Entregas), sem ficar vermelho nem "atrasado".
 - Relatório do dia redesenhado: 4 cartões separados no topo, seções separadas por linha fina, "O que melhorar" e "Pontos fortes" lado a lado, gráficos de barras finos e limpos, tabelas mais leves.
+
+VERSÃO 28 - VEM BUSCAR MAIS SIMPLES
+- "Vem buscar" não pede mais dia nem horário: fica agendado para o dia em que foi lançado.
+- Se a impressão automática estiver ligada (Configurações > Entregas), o "Vem buscar" imprime sozinho um cupom com: nome da cliente, quem vem pegar, se está PAGO ou A PAGAR e a forma de pagamento. Também dá para imprimir pela Agenda (botão "Imprimir").

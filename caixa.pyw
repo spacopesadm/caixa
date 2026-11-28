@@ -2484,16 +2484,11 @@ class App:
         """'Vem buscar': cliente, quem vem pegar, se já está pago e como foi o pagamento. Sem endereço."""
         def pega(k):
             return str(i.get(k) or "").strip()
-        for k, rot in (("cliente", "nome do cliente"), ("vendedor", "vendedor"), ("janela", "horário"), ("pago", "se já está pago")):
+        for k, rot in (("cliente", "nome do cliente"), ("vendedor", "vendedor"), ("pago", "se já está pago")):
             if not pega(k):
                 raise ValueError("falta " + rot)
-        data = agenda.parse_data(pega("data"))
-        try:
-            janela = agenda.parse_janela(pega("janela"))
-            if janela != agenda.QUALQUER and janela not in (self.cfg.get("janelas_entrega") or []):
-                janela = agenda.parse_hora(pega("janela").split("-")[0])
-        except ValueError:
-            janela = agenda.parse_hora(pega("janela"))
+        data = agenda.parse_data(pega("data")) if pega("data") else today()      # sem dia marcado: vale o dia em que foi lançado
+        janela = agenda.QUALQUER                                                # quem busca vem quando puder
         pago = "Sim" if pega("pago").lower().startswith("s") else "Não"
         forma = pega("pagamento")
         if pago == "Sim" and not forma:
@@ -2519,7 +2514,8 @@ class App:
         """Imprime o endereço da entrega na impressora térmica (Epson TM-T20x)."""
         try:
             import impressao
-            alvo = impressao.enviar(self.cfg.get("impressora", ""), impressao.montar_endereco(it, self.cfg.get("impressora_colunas", 48)), "Entrega")
+            cupom = impressao.montar_retirada(it, self.cfg.get("impressora_colunas", 48)) if it.get("tipo") == agenda.BUSCAR else impressao.montar_endereco(it, self.cfg.get("impressora_colunas", 48))
+            alvo = impressao.enviar(self.cfg.get("impressora", ""), cupom, "Entrega")
             self.show("Impressão", "Endereço enviado para %s." % alvo, "joy", 3500, True)
         except Exception as e:
             from tkinter import messagebox
@@ -2527,7 +2523,8 @@ class App:
 
     def auto_imprimir(self, it, recente=True):
         """Impressão automática do endereço quando o vendedor agenda (só no computador onde isso está ligado)."""
-        if not self.cfg.get("imprimir_auto") or it.get("tipo") not in (agenda.TIPOS_ENTREGA if agenda else []) or not it.get("endereco"):
+        busca = it.get("tipo") == (agenda.BUSCAR if agenda else "")
+        if not self.cfg.get("imprimir_auto") or (it.get("tipo") not in (agenda.TIPOS_ENTREGA if agenda else []) and not busca) or (not busca and not it.get("endereco")):
             return
         if it["id"] in self.impressos or it.get("apagado") or it.get("feito"):
             return
@@ -2541,8 +2538,11 @@ class App:
         def trabalho():
             try:
                 import impressao
-                impressao.enviar(nome, impressao.montar_endereco(dados, colunas), "Entrega")
-                self.root.after(0, lambda: self.show("Entrega impressa", "%s - %s (%s)" % (dados["tipo"], dados.get("cliente", ""), dados.get("bairro", "")), "joy", 5000, True))
+                if dados.get("tipo") == agenda.BUSCAR:
+                    impressao.enviar(nome, impressao.montar_retirada(dados, colunas), "Retirada")
+                else:
+                    impressao.enviar(nome, impressao.montar_endereco(dados, colunas), "Entrega")
+                self.root.after(0, lambda: self.show("Impresso", "%s - %s (%s)" % (dados["tipo"], dados.get("cliente", ""), dados.get("bairro", "")), "joy", 5000, True))
             except Exception as e:
                 msg = str(e)
                 self.root.after(0, lambda: self.show("Não consegui imprimir a entrega", "%s. Use \"Imprimir endereço\" na Agenda." % msg, "tag", 12000, True))
@@ -2593,8 +2593,8 @@ class App:
         else:
             self.alarm(1)
         botoes = [("Feito", lambda: self.ag_feito(iid)), ("Adiar %d min" % self.cfg.get("adiar_minutos", 5), lambda: self.ag_adiar(iid))]
-        if it.get("endereco"):
-            botoes.insert(1, ("Imprimir endereço", lambda: (self.ag_imprimir(it), self.ag_adiar(iid))))
+        if it.get("endereco") or it.get("tipo") == agenda.BUSCAR:
+            botoes.insert(1, ("Imprimir", lambda: (self.ag_imprimir(it), self.ag_adiar(iid))))
         e["pop"] = self.card("tc", 760, cor, "#FFFFFF", "%s · %s%s" % (it["tipo"], it["hora"], " (atrasado %d min)" % int(atraso) if atraso >= 2 else ""), corpo,
                              botoes,
                              text_size=18)
@@ -2719,14 +2719,7 @@ class App:
         fb = tk.Frame(f, bg=BG)
         lab(fb, "Vendedor(a) *", 0, 0)
         ttk.Combobox(fb, textvariable=E["vendedor"], values=self.lista_vendedores(), width=24).grid(row=1, column=0, sticky="w", padx=(0, 8))
-        lab(fb, "Dia * (dd/mm/aaaa)", 0, 1)
-        ttk.Entry(fb, textvariable=V["data"], width=14).grid(row=1, column=1, sticky="w", padx=(0, 8))
-        lab(fb, "Horário *", 0, 2)
-        cb_jan2 = ttk.Combobox(fb, textvariable=E["jan"], values=janelas, width=22, state="readonly")
-        cb_jan2.grid(row=1, column=2, sticky="w")
-        lab(fb, "Horário específico (HH:MM)", 0, 3)
-        ent_esp2 = ttk.Entry(fb, textvariable=E["esp"], width=8, state="disabled")
-        ent_esp2.grid(row=1, column=3, sticky="w", padx=(8, 0))
+        tk.Label(fb, text="Fica agendado para hoje (dia do lançamento): não precisa marcar dia nem horário.", font=(FONT, 9), bg=BG, fg=GREY).grid(row=1, column=1, columnspan=3, sticky="w")
         lab(fb, "Nome da cliente *", 2, 0)
         ttk.Entry(fb, textvariable=E["cliente"], width=34).grid(row=3, column=0, columnspan=2, sticky="w")
         lab(fb, "Quem vem pegar (vazio = a própria cliente)", 2, 2, 2)
@@ -2775,11 +2768,9 @@ class App:
         def jan_mudou(_e=None):
             esp = E["jan"].get() == OUTRO
             ent_esp.configure(state="normal" if esp else "disabled")
-            ent_esp2.configure(state="normal" if esp else "disabled")
             if not esp:
                 E["esp"].set("")
         cb_jan.bind("<<ComboboxSelected>>", jan_mudou)
-        cb_jan2.bind("<<ComboboxSelected>>", jan_mudou)
 
         def sugerir(_e=None):
             t = agenda.chave_bairro(E["bairro"].get())
@@ -3016,14 +3007,9 @@ class App:
         def adicionar():
             try:
                 if V["tipo"].get() == agenda.BUSCAR:
-                    jan = E["jan"].get()
-                    if jan == OUTRO:
-                        if not E["esp"].get().strip():
-                            raise ValueError("Digite o horário específico (ex.: 14:30).")
-                        jan = E["esp"].get().strip()
                     pedido = {"tipo": agenda.BUSCAR, "vendedor": E["vendedor"].get(), "cliente": E["cliente"].get(), "telefone": E["tel"].get(),
                               "quem_busca": E["quem"].get(), "pago": E["pago"].get(), "pagamento": E["forma"].get(),
-                              "data": V["data"].get(), "janela": jan, "detalhe": obs2.get("1.0", "end").strip()}
+                              "data": (V["data"].get() if edit["id"] else ""), "janela": agenda.QUALQUER, "detalhe": obs2.get("1.0", "end").strip()}
                     try:
                         novo = self.item_busca(pedido, edit["id"])
                     except ValueError as ex:
@@ -3065,7 +3051,7 @@ class App:
             if edit["id"]:
                 self.ag_est.pop(edit["id"], None)
             self.ag_gravar(novo)
-            if novo.get("tipo") in ENT and not edit["id"]:
+            if (novo.get("tipo") in ENT or novo.get("tipo") == agenda.BUSCAR) and not edit["id"]:
                 self.auto_imprimir(novo, recente=False)
             limpar_form()
             recarregar()
@@ -3156,7 +3142,7 @@ class App:
             it = selecionado()
             if not it:
                 msgl.configure(text="Escolha um item da lista para imprimir.", fg=RED)
-            elif not it.get("endereco"):
+            elif not it.get("endereco") and it.get("tipo") != agenda.BUSCAR:
                 msgl.configure(text="Esse item não tem endereço. Dê 2 cliques nele, preencha o endereço e salve.", fg=RED)
             else:
                 msgl.configure(text="")
@@ -3164,7 +3150,7 @@ class App:
 
         def imprimir_dia():
             self.ag_imprimir_roteiro(rd_dia())
-        Btn(b2, text="Imprimir endereço", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
+        Btn(b2, text="Imprimir", command=imprimir_sel, bg=BLUE, fg="#FFFFFF", relief="flat", font=(FONT, 10, "bold"), padx=10, pady=4, cursor="hand2").pack(side="left", padx=(8, 0))
         Btn(b2, text="Excluir", command=excluir, relief="flat", font=(FONT, 10), padx=10, pady=4, cursor="hand2").pack(side="left", padx=8)
         br = tk.Frame(tab_r, bg=BG)
         br.pack(fill="x", padx=16, pady=(0, 10))
