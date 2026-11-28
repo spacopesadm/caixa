@@ -89,3 +89,8 @@ VERSÃO 23 - AGENDA EM ABAS E ROTEIRO POR HORÁRIO
 - Agenda do computador agora tem 3 abas: "Agendar", "Agendados" e "Roteiro do dia".
 - Agendados: lista por dia com caixa de seleção (☐ = a fazer, ☑ = feito). Clique na caixinha para marcar; clique de novo para desmarcar. Filtros: hoje, amanhã, não feitos etc. Linhas atrasadas em vermelho, entregas em lilás.
 - Roteiro do dia: por horário, um cliente por linha (nome, tipo, bairro, telefone, vendedor) com o endereço logo abaixo. Setas ◀ ▶ para trocar o dia. Também dá para marcar como feito ali. Botões: imprimir e copiar para o WhatsApp.
+
+VERSÃO 24 - VISUAL NOVO DO PAINEL
+- Painel do caixa mais elegante: cada bloco (relógio e botões, pontos, Ao chegar, Tarde, Lembretes) fica num cartão retangular branco com uma faixa colorida ao lado, flutuando sobre o fundo.
+- Fundo personalizável: em Configurações > aba "Aparência" escolha um tema pronto (Azul claro, Rosa Spaço, Lavanda, Menta, Pôr do sol, Grafite, Noite, Branco) ou escolha suas 2 cores e o tipo de degradê (vertical, horizontal, diagonal ou cor lisa). Tem uma prévia na hora. Vale só para este computador.
+- Botões mais bonitos (planos, sem borda, mudam de cor ao passar o mouse) no painel e na Agenda.

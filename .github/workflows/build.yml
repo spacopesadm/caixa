@@ -25,7 +25,7 @@ jobs:
         run: |
           cp caixa.pyw caixa_main.py
           pyinstaller --noconfirm --onefile --windowed --name PainelDoCaixa \
-            --hidden-import configuracoes --hidden-import relatorio --hidden-import envio --hidden-import nuvem --hidden-import redelocal --add-data "lider;lider" \
+            --hidden-import configuracoes --hidden-import relatorio --hidden-import envio --hidden-import nuvem --hidden-import redelocal --hidden-import tema --add-data "lider;lider" \
             --collect-submodules reportlab --collect-data reportlab --collect-submodules qrcode \
             caixa_main.py
       - uses: actions/upload-artifact@v4

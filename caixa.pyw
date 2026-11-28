@@ -49,6 +49,7 @@ try:
     import agenda
 except Exception:
     agenda = None
+import tema
 try:
     import redelocal as rede_local
 except Exception:
@@ -89,6 +90,10 @@ def _dia_padrao(aberto=True):
 DEFAULT_DIAS = {str(i): _dia_padrao(i != 6) for i in range(7)}   # 0 = segunda ... 6 = domingo (fechado)
 
 DEFAULT_CONFIG = {
+    "tema_nome": "Azul claro",
+    "tema_cor1": "#EAF0FA",
+    "tema_cor2": "#C9D9F2",
+    "tema_degrade": "vertical",
     "aviso_aleatorio_min_minutos": 5,
     "aviso_aleatorio_max_minutos": 10,
     "pausa_atendimento_minutos": 4,
@@ -958,7 +963,7 @@ class App:
         tk.Button(w, text="Agora não (usar só neste computador)", command=adiar, font=(FONT, 9), bg=BG, fg=GREY, bd=0).pack(pady=(0, 14))
 
     # ---- configurações iguais em todos os computadores
-    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas", "imprimir_auto", "modo_cliente"}
+    CFG_LOCAIS = {"nuvem_url", "nuvem_codigo", "lider_url", "maquina_id", "maquina_nome", "cfg_rev", "pasta_relatorios", "local_ativo", "local_pin", "local_codigo", "impressora", "impressora_colunas", "imprimir_auto", "modo_cliente", "tema_nome", "tema_cor1", "tema_cor2", "tema_degrade"}
 
     def empurrar_config_forte(self):
         """Ao abrir, o principal publica as configurações dele com revisão nova, para sobrescrever qualquer cópia antiga no online."""
@@ -3053,6 +3058,7 @@ class App:
         tk.Button(br, text="Copiar para o WhatsApp", command=copiar_roteiro, relief="flat", font=(FONT, 10), padx=12, pady=5, cursor="hand2").pack(side="left", padx=8)
         recarregar()
         mostrar_form()
+        tema.polir(w)
 
     def open_hoje(self):
         hoje = dt.date.today()
@@ -3290,40 +3296,67 @@ class App:
         w.protocol("WM_DELETE_WINDOW", w.withdraw)
         W = self.w = {"am": {}, "cx": {}, "conf": {}, "lem": {}, "lem_btn": {}}
 
-        # --- topo fixo: relógio, pausa, placar
-        top = tk.Frame(w, bg=BG)
-        top.pack(fill="x", padx=18, pady=(10, 0))
-        row1 = tk.Frame(top, bg=BG)
-        row1.pack(fill="x")
-        left = tk.Frame(row1, bg=BG)
-        left.pack(side="left")
-        W["date"] = tk.Label(left, text="", font=(FONT, 10), bg=BG, fg=GREY, anchor="w")
-        W["date"].pack(fill="x")
-        W["clock"] = tk.Label(left, text="", font=(FONT, 38, "bold"), bg=BG, fg=INK, anchor="w")
-        W["clock"].pack(fill="x")
-        W["phase"] = tk.Label(left, text="", font=(FONT, 11, "bold"), bg=BG, fg=INK, anchor="w")
-        W["phase"].pack(fill="x")
-        W["emp"] = tk.Label(left, text="", font=(FONT, 10), bg=BG, fg=BLUE, anchor="w")
-        W["emp"].pack(fill="x")
-        right = tk.Frame(row1, bg=BG)
-        right.pack(side="right", anchor="ne")
-        tk.Button(right, text="Relatório do dia", command=self.generate_report, font=(FONT, 10, "bold"), relief="flat",
-                  bg=INK, fg="#FFFFFF", activebackground=INK, activeforeground="#FFFFFF", cursor="hand2",
-                  padx=12, pady=4).pack(fill="x", pady=(0, 4))
-        tk.Button(right, text="Configurações", command=self.open_settings, font=(FONT, 10, "bold"), relief="solid", bd=1,
-                  bg=PAPER, fg=INK, cursor="hand2", padx=12, pady=3).pack(fill="x")
-        tk.Button(right, text="Agenda (entregas e avisos)", command=self.open_agenda, font=(FONT, 10, "bold"), relief="flat", bd=0,
-                  bg=ROXO, fg="#FFFFFF", activebackground=ROXO, activeforeground="#FFFFFF", cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
-        tk.Button(right, text="Horário de hoje", command=self.open_hoje, font=(FONT, 10), relief="solid", bd=1,
-                  bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3).pack(fill="x", pady=(4, 0))
-        W["btn_emp"] = tk.Button(right, text="Trocar funcionário", command=self.open_switch, font=(FONT, 10), relief="solid", bd=1,
-                                 bg=PAPER, fg=BLUE, cursor="hand2", padx=12, pady=3)
-        W["hold"] = tk.Button(top, text="", command=lambda: self.set_hold(not self.holding()), font=(FONT, 12, "bold"),
-                              relief="solid", bd=2, cursor="hand2", pady=7)
-        W["hold"].pack(fill="x", pady=(8, 6))
+        # --- aparência (cores e degradê escolhidos em Configurações > Aparência)
+        c1, c2, dg = tema.cores(self.cfg)
+        mid = tema.cor_media(self.cfg)
+        escuro = tema.luminosidade(mid) < 0.45
+        fundo_txt = "#E8EDF5" if escuro else GREY
+        borda = tema.escurece(mid, 0.10) if not escuro else "#46526A"
+        SOFT = "#EEF2F8"
+        solido = c1 if dg == "nenhum" else mid
+        w.configure(bg=solido)
 
-        pf = tk.Frame(top, bg=PAPER, highlightbackground="#CBD3DE", highlightthickness=1)
-        pf.pack(fill="x", pady=(0, 6))
+        def botao(pai, texto, cmd, tipo="suave", **kw):
+            cores_ = {"escuro": (INK, "#FFFFFF"), "roxo": (ROXO, "#FFFFFF"), "azul": (BLUE, "#FFFFFF"),
+                      "suave": (SOFT, BLUE), "neutro": (SOFT, INK)}
+            bgc, fgc = cores_[tipo]
+            opts = dict(text=texto, command=cmd, font=(FONT, 10, "bold"), relief="flat", bd=0, bg=bgc, fg=fgc,
+                        activebackground=bgc, activeforeground=fgc, cursor="hand2", padx=14, pady=5)
+            opts.update(kw)
+            return tk.Button(pai, **opts)
+
+        def cartao(pai, cor=None):
+            f = tk.Frame(pai, bg=PAPER, highlightbackground=borda, highlightthickness=1)
+            if cor:
+                tk.Frame(f, width=5, bg=cor).pack(side="left", fill="y")
+            corpo = tk.Frame(f, bg=PAPER)
+            corpo.pack(side="left", fill="both", expand=True)
+            return f, corpo
+
+        # --- topo fixo: relógio, pausa, placar (cada bloco num cartão)
+        topc = tk.Canvas(w, bg=solido, highlightthickness=0, height=10)
+        topc.pack(side="top", fill="x")
+        g1 = topc.create_image(0, 0, anchor="nw")
+        topc.tag_lower(g1)
+        ptop = tema.Pilha(topc, ao_medir=lambda y: topc.configure(height=y - 4) if int(topc.cget("height")) != y - 4 else None)
+
+        c_top, top = cartao(topc, PINK)
+        ptop.add(c_top)
+        row1 = tk.Frame(top, bg=PAPER)
+        row1.pack(fill="x", padx=14, pady=(8, 0))
+        left = tk.Frame(row1, bg=PAPER)
+        left.pack(side="left")
+        W["date"] = tk.Label(left, text="", font=(FONT, 10), bg=PAPER, fg=GREY, anchor="w")
+        W["date"].pack(fill="x")
+        W["clock"] = tk.Label(left, text="", font=(FONT, 38, "bold"), bg=PAPER, fg=INK, anchor="w")
+        W["clock"].pack(fill="x")
+        W["phase"] = tk.Label(left, text="", font=(FONT, 11, "bold"), bg=PAPER, fg=INK, anchor="w")
+        W["phase"].pack(fill="x")
+        W["emp"] = tk.Label(left, text="", font=(FONT, 10), bg=PAPER, fg=BLUE, anchor="w")
+        W["emp"].pack(fill="x")
+        right = tk.Frame(row1, bg=PAPER)
+        right.pack(side="right", anchor="ne")
+        botao(right, "Relatório do dia", self.generate_report, "escuro").pack(fill="x", pady=(0, 4))
+        botao(right, "Configurações", self.open_settings, "neutro").pack(fill="x")
+        botao(right, "Agenda (entregas e avisos)", self.open_agenda, "roxo").pack(fill="x", pady=(4, 0))
+        botao(right, "Horário de hoje", self.open_hoje, "suave").pack(fill="x", pady=(4, 0))
+        W["btn_emp"] = botao(right, "Trocar funcionário", self.open_switch, "suave")
+        W["hold"] = tk.Button(top, text="", command=lambda: self.set_hold(not self.holding()), font=(FONT, 12, "bold"),
+                              relief="flat", bd=0, cursor="hand2", pady=9)
+        W["hold"].pack(fill="x", padx=14, pady=(10, 12))
+
+        c_pf, pf = cartao(topc, ROXO)
+        ptop.add(c_pf)
         W["pts"] = tk.Label(pf, text="", font=(FONT, 13, "bold"), bg=PAPER, fg=INK, anchor="w")
         W["pts"].pack(fill="x", padx=12, pady=(8, 0))
         W["nivel"] = tk.Label(pf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
@@ -3331,25 +3364,65 @@ class App:
         W["bar"] = tk.Canvas(pf, height=12, bg="#E9EDF2", highlightthickness=0)
         W["bar"].pack(fill="x", padx=12, pady=(6, 2))
         W["week"] = tk.Label(pf, text="", font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w")
-        W["week"].pack(fill="x", padx=12, pady=(0, 8))
-        W["prog"] = tk.Label(top, text="", font=(FONT, 10), bg=BG, fg=GREY, anchor="w")
-        W["prog"].pack(fill="x")
+        W["week"].pack(fill="x", padx=12, pady=(0, 4))
+        W["prog"] = tk.Label(pf, text="", font=(FONT, 10), bg=PAPER, fg=GREY, anchor="w")
+        W["prog"].pack(fill="x", padx=12, pady=(0, 8))
 
-        W["stats"] = tk.Label(w, text="", font=("Consolas", 9), bg=BG, fg=GREY, anchor="w")
+        W["stats"] = tk.Label(w, text="", font=("Consolas", 9), bg=solido, fg=fundo_txt, anchor="w")
         W["stats"].pack(side="bottom", fill="x", padx=18, pady=6)
 
-        # --- área com rolagem
-        body = tk.Frame(w, bg=BG)
+        # --- área com rolagem (os cartões flutuam sobre o fundo)
+        body = tk.Frame(w, bg=solido)
         body.pack(fill="both", expand=True)
-        cv = tk.Canvas(body, bg=BG, highlightthickness=0)
+        cv = tk.Canvas(body, bg=solido, highlightthickness=0)
         sb = tk.Scrollbar(body, orient="vertical", command=cv.yview)
-        inner = tk.Frame(cv, bg=BG)
-        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        wid = cv.create_window((0, 0), window=inner, anchor="nw")
-        cv.bind("<Configure>", lambda e: cv.itemconfigure(wid, width=e.width))
-        cv.configure(yscrollcommand=sb.set)
+        g2 = cv.create_image(0, 0, anchor="nw")
+        cv.tag_lower(g2)
+
+        def rolou(a, b):
+            sb.set(a, b)
+            cv.coords(g2, 0, cv.canvasy(0))
+        cv.configure(yscrollcommand=rolou)
         sb.pack(side="right", fill="y")
         cv.pack(side="left", fill="both", expand=True)
+
+        def medido(y):
+            cv.configure(scrollregion=(0, 0, max(1, cv.winfo_width()), y))
+        pila = tema.Pilha(cv, ao_medir=medido)
+        imgs = {}
+
+        def pintar():
+            imgs["t"] = None
+            try:
+                if not w.winfo_exists():
+                    return
+                LW, LH = w.winfo_width(), w.winfo_height()
+                full = tema.imagem_degrade(tk, LW, LH, c1, c2, dg)
+                if full is None:
+                    return
+                ht = max(1, topc.winfo_height())
+                p1, p2 = tk.PhotoImage(), tk.PhotoImage()
+                p1.tk.call(p1, "copy", full, "-from", 0, 0, LW, min(ht, LH))
+                p2.tk.call(p2, "copy", full, "-from", 0, min(ht, LH - 1), LW, LH)
+                imgs["p"] = (full, p1, p2)
+                topc.itemconfigure(g1, image=p1)
+                cv.itemconfigure(g2, image=p2)
+                cv.coords(g2, 0, cv.canvasy(0))
+            except Exception:
+                pass
+
+        def repintar(e=None):
+            if e is not None and e.widget is not w and e.widget is not topc:
+                return
+            if imgs.get("t"):
+                try:
+                    w.after_cancel(imgs["t"])
+                except Exception:
+                    pass
+            imgs["t"] = w.after(150, pintar)
+        w.bind("<Configure>", repintar, add="+")
+        topc.bind("<Configure>", repintar, add="+")
+        w.after(250, pintar)
 
         def wheel(e):
             step = -1 if (getattr(e, "delta", 0) > 0 or getattr(e, "num", 0) == 4) else 1
@@ -3358,29 +3431,29 @@ class App:
         w.bind("<Button-4>", wheel)
         w.bind("<Button-5>", wheel)
 
-        def section(title, hours):
-            f = tk.Frame(inner, bg=PAPER, highlightbackground="#CBD3DE", highlightthickness=1)
-            f.pack(fill="x", padx=18, pady=6)
-            hdr = tk.Frame(f, bg=PAPER)
+        def section(title, hours, cor=PINK):
+            f, corpo = cartao(cv, cor)
+            pila.add(f)
+            hdr = tk.Frame(corpo, bg=PAPER)
             hdr.pack(fill="x", padx=14, pady=(10, 4))
-            tk.Label(hdr, text=title.upper(), font=(FONT, 16, "bold"), bg=PAPER, fg=INK).pack(side="left")
-            tk.Label(hdr, text=hours, font=("Consolas", 10), bg=PAPER, fg=GREY).pack(side="left", padx=10)
-            return f
+            tk.Label(hdr, text=title.upper(), font=(FONT, 15, "bold"), bg=PAPER, fg=INK).pack(side="left")
+            tk.Label(hdr, text=hours, font=("Consolas", 10), bg=SOFT, fg=GREY, padx=8, pady=1).pack(side="left", padx=10)
+            return corpo
         a, p = self.cfg["ao_chegar_horario"], self.cfg["tarde_horario"]
-        fa = section("Ao chegar", "%s – %s" % tuple(a))
+        fa = section("Ao chegar", "%s – %s" % tuple(a), ORANGE)
         for iid, name in self.cfg["ao_chegar"]:
             var = tk.BooleanVar(value=bool(self.state["am"].get(iid)))
             tk.Checkbutton(fa, text=name, variable=var, font=(FONT, 13), bg=PAPER, activebackground=PAPER,
-                           anchor="w", command=lambda i=iid, v=var: self.set_am(i, v.get())).pack(fill="x", padx=14, pady=2)
+                           anchor="w", cursor="hand2", command=lambda i=iid, v=var: self.set_am(i, v.get())).pack(fill="x", padx=14, pady=2)
             W["am"][iid] = var
         tk.Frame(fa, height=6, bg=PAPER).pack()
 
-        fp = section("Tarde", "%s – %s" % tuple(p))
+        fp = section("Tarde", "%s – %s" % tuple(p), BLUE)
         tk.Label(fp, text="CAIXA DE HORA EM HORA", font=(FONT, 8, "bold"), bg=PAPER, fg=GREY, anchor="w").pack(fill="x", padx=14)
         chips = tk.Frame(fp, bg=PAPER)
         chips.pack(fill="x", padx=14, pady=(2, 8))
         for hh in self.cfg["horas_caixa"]:
-            b = tk.Button(chips, text="", font=(FONT, 10, "bold"), relief="flat", cursor="hand2", width=12, pady=6,
+            b = tk.Button(chips, text="", font=(FONT, 10, "bold"), relief="flat", bd=0, cursor="hand2", width=12, pady=6,
                           command=lambda hh=hh: self.toggle_cx(hh))
             b.pack(side="left", padx=3)
             W["cx"][hh] = b
@@ -3395,14 +3468,13 @@ class App:
                 tk.Label(lf, text=note, font=(FONT, 9), bg=PAPER, fg=GREY, anchor="w", wraplength=360, justify="left").pack(fill="x")
             st = tk.Label(lf, text="", font=("Consolas", 9), bg=PAPER, fg=GREY, anchor="w")
             st.pack(fill="x")
-            tk.Button(row, text="Conferi", font=(FONT, 11, "bold"), bg=BLUE, fg="#FFFFFF", relief="flat",
-                      cursor="hand2", padx=14, pady=6, command=lambda c=cid: self.set_conf(c)).pack(side="right")
+            botao(row, "Conferi", lambda c=cid: self.set_conf(c), "azul", font=(FONT, 11, "bold"), padx=16, pady=6).pack(side="right")
             W["conf"][cid] = st
         tk.Frame(fp, height=6, bg=PAPER).pack()
 
         lems = lembretes_cfg(self.cfg)
         if lems:
-            fl = section("Lembretes", "maquininha e outros")
+            fl = section("Lembretes", "maquininha e outros", ROXO)
             for lid, mn, nome, texto, curto in lems:
                 row = tk.Frame(fl, bg=PAPER)
                 row.pack(fill="x", padx=14, pady=4)
@@ -3411,13 +3483,12 @@ class App:
                 tk.Label(lf, text=nome, font=(FONT, 13, "bold"), bg=PAPER, fg=INK, anchor="w").pack(fill="x")
                 st = tk.Label(lf, text="", font=("Consolas", 9), bg=PAPER, fg=GREY, anchor="w")
                 st.pack(fill="x")
-                bt = tk.Button(row, text="Feito", font=(FONT, 11, "bold"), bg=BLUE, fg="#FFFFFF", relief="flat",
-                               cursor="hand2", padx=14, pady=6, command=lambda i=lid: self.set_lem(i))
+                bt = botao(row, "Feito", lambda i=lid: self.set_lem(i), "azul", font=(FONT, 11, "bold"), padx=16, pady=6)
                 bt.pack(side="right")
                 W["lem"][lid] = st
                 W["lem_btn"][lid] = bt
             tk.Frame(fl, height=6, bg=PAPER).pack()
-        tk.Frame(inner, height=10, bg=BG).pack()
+        tema.polir(w)
         self.refresh()
 
     def set_am(self, iid, val):
@@ -3531,7 +3602,7 @@ class App:
             left = int(self.hold_until - time.time())
             W["hold"].config(text="Atendendo · avisos em pausa (%d:%02d) · toque para voltar" % (left // 60, left % 60), bg=BLUE, fg="#FFFFFF")
         else:
-            W["hold"].config(text="Cliente na frente (pausar avisos %d min)" % self.cfg["pausa_atendimento_minutos"], bg=PAPER, fg=BLUE)
+            W["hold"].config(text="Cliente na frente (pausar avisos %d min)" % self.cfg["pausa_atendimento_minutos"], bg="#EEF2F8", fg=BLUE)
         W["stats"].config(text="Avisos hoje: %d · Confirmados: %d" % (self.state["shown"], self.state["ok"]))
         # placar
         emp = self.current_emp()

@@ -611,6 +611,75 @@ def abrir(app):
             webbrowser.open(link_l)
         ttk.Button(t10, text="Abrir a página do celular aqui (teste)", command=abrir_l).grid(row=5, column=0, sticky="w", pady=(12, 0))
 
+    # ---------------- Aparência
+    import tema as _tema
+    ta = tab("Aparência")
+    ttk.Label(ta, text="Escolha o visual do painel do caixa. A mudança aparece quando você salvar.", foreground=GREY,
+              wraplength=560, justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
+    V["tema_nome"] = tk.StringVar(value=cfg.get("tema_nome", "Azul claro"))
+    V["tema_cor1"] = tk.StringVar(value=_tema.cores(cfg)[0])
+    V["tema_cor2"] = tk.StringVar(value=_tema.cores(cfg)[1])
+    V["tema_degrade"] = tk.StringVar(value=_tema.cores(cfg)[2])
+    ttk.Label(ta, text="Tema pronto").grid(row=1, column=0, sticky="w", pady=4)
+    cb_t = ttk.Combobox(ta, textvariable=V["tema_nome"], values=list(_tema.TEMAS.keys()) + ["Personalizado"], state="readonly", width=22)
+    cb_t.grid(row=1, column=1, sticky="w", padx=10)
+    ttk.Label(ta, text="Degradê").grid(row=2, column=0, sticky="w", pady=4)
+    nomes_dir = {"Vertical (de cima para baixo)": "vertical", "Horizontal (da esquerda para a direita)": "horizontal",
+                 "Diagonal": "diagonal", "Sem degradê (cor lisa)": "nenhum"}
+    V["_dir_txt"] = tk.StringVar(value=[k for k, v in nomes_dir.items() if v == V["tema_degrade"].get()][0])
+    cb_d = ttk.Combobox(ta, textvariable=V["_dir_txt"], values=list(nomes_dir.keys()), state="readonly", width=34)
+    cb_d.grid(row=2, column=1, columnspan=2, sticky="w", padx=10)
+    prev = tk.Canvas(ta, width=420, height=90, highlightthickness=1, highlightbackground="#CBD3DE")
+    prev.grid(row=5, column=0, columnspan=4, sticky="w", pady=(14, 0))
+    sw = {}
+
+    def pinta_previa(*_):
+        try:
+            c1, c2 = V["tema_cor1"].get(), V["tema_cor2"].get()
+            d = nomes_dir.get(V["_dir_txt"].get(), "vertical")
+            for k, c in (("tema_cor1", c1), ("tema_cor2", c2)):
+                if _tema._hex_ok(c):
+                    sw[k].configure(bg=c)
+            prev.delete("all")
+            if not (_tema._hex_ok(c1) and _tema._hex_ok(c2)):
+                return
+            prev._img = _tema.imagem_degrade(tk, 420, 90, c1, c2, d)
+            if prev._img is None:
+                prev.configure(bg=c1)
+            else:
+                prev.create_image(0, 0, image=prev._img, anchor="nw")
+            prev.create_rectangle(20, 18, 200, 72, fill="#FFFFFF", outline="#CBD3DE")
+            prev.create_rectangle(20, 18, 25, 72, fill="#E0246F", outline="")
+            prev.create_text(36, 30, text="AO CHEGAR", anchor="w", font=("Segoe UI", 9, "bold"), fill="#14202E")
+            prev.create_rectangle(36, 46, 96, 64, fill="#1F46D1", outline="")
+            prev.create_text(66, 55, text="Conferi", font=("Segoe UI", 8, "bold"), fill="#FFFFFF")
+        except Exception:
+            pass
+
+    def escolhe(chave):
+        from tkinter import colorchooser
+        r = colorchooser.askcolor(color=V[chave].get(), parent=w, title="Escolha a cor")
+        if r and r[1]:
+            V[chave].set(r[1].upper())
+            V["tema_nome"].set("Personalizado")
+            pinta_previa()
+
+    for i, (chave, txt) in enumerate((("tema_cor1", "Cor 1 (início do degradê)"), ("tema_cor2", "Cor 2 (fim do degradê)"))):
+        ttk.Label(ta, text=txt).grid(row=3 + i, column=0, sticky="w", pady=4)
+        sw[chave] = tk.Label(ta, width=6, relief="solid", bd=1, bg=V[chave].get())
+        sw[chave].grid(row=3 + i, column=1, sticky="w", padx=10)
+        ttk.Button(ta, text="Escolher cor...", command=lambda c=chave: escolhe(c)).grid(row=3 + i, column=2, sticky="w")
+
+    def aplica_tema(_e=None):
+        t = _tema.TEMAS.get(V["tema_nome"].get())
+        if t:
+            V["tema_cor1"].set(t[0])
+            V["tema_cor2"].set(t[1])
+        pinta_previa()
+    cb_t.bind("<<ComboboxSelected>>", aplica_tema)
+    cb_d.bind("<<ComboboxSelected>>", pinta_previa)
+    pinta_previa()
+
     # ---------------- Geral
     t6 = tab("Geral")
     campo(t6, 0, "Nome da loja (aparece no relatório)", "loja", cfg.get("nome_loja", ""), 34)
@@ -642,6 +711,10 @@ def abrir(app):
         n["repetir_conferencia_minutos"] = _num("Repetir conferências", V["rep"].get(), 20, 600)
         n["intervalo_entre_conferencias_minutos"] = _num("Intervalo entre conferências", V["gap"].get(), 0, 120)
         n["som"] = bool(V["som"].get())
+        n["tema_nome"] = V["tema_nome"].get()
+        n["tema_cor1"] = V["tema_cor1"].get().strip().upper()
+        n["tema_cor2"] = V["tema_cor2"].get().strip().upper()
+        n["tema_degrade"] = nomes_dir.get(V["_dir_txt"].get(), "vertical")
 
         dias = {}
         for i in range(7):
