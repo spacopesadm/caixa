@@ -10,8 +10,10 @@ import time
 import uuid
 
 TIPOS_ENTREGA = ["Entrega", "Condicional (Levar)", "Condicional (Buscar)", "Troca"]
-TIPOS = TIPOS_ENTREGA + ["Condicional", "Buscar condicional", "Atendimento", "Lembrete", "Aviso"]
-EXTRAS = ("cliente", "bairro", "cep", "telefone", "vendedor", "janela", "zona", "tempo", "endereco", "referencia", "obs")
+BUSCAR = "Vem buscar"        # a cliente (ou alguém por ela) vem buscar na loja: sem endereço, com controle de pagamento
+FORMAS_PAGTO = ["Pix", "Cartão de débito", "Cartão de crédito", "Dinheiro", "Link de pagamento", "Outra forma"]
+TIPOS = TIPOS_ENTREGA + [BUSCAR, "Condicional", "Buscar condicional", "Atendimento", "Lembrete", "Aviso"]
+EXTRAS = ("cliente", "bairro", "cep", "telefone", "vendedor", "janela", "zona", "tempo", "endereco", "referencia", "obs", "quem_busca", "pago", "pagamento")
 ANTES = [0, 5, 10, 15, 30, 60]
 
 
@@ -165,11 +167,23 @@ def roteiro_grupos(lista, iso):
 
 def linha_cliente(it, caixa=True):
     """Uma linha por cliente: [ ] Nome | Tipo | Bairro (Rn) | Telefone | Vendedor."""
-    partes = [it.get("cliente") or it.get("titulo", ""), it.get("tipo", ""),
-              (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")).strip(), it.get("telefone", "")]
+    if it.get("tipo") == BUSCAR:
+        partes = [it.get("cliente") or it.get("titulo", ""), it.get("tipo", ""), "Quem busca: %s" % (it.get("quem_busca") or "a cliente"),
+                  texto_pagamento(it), it.get("telefone", "")]
+    else:
+        partes = [it.get("cliente") or it.get("titulo", ""), it.get("tipo", ""),
+                  (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")).strip(), it.get("telefone", "")]
     if it.get("vendedor"):
         partes.append("Vend.: %s" % it["vendedor"])
     return ("[X] " if it.get("feito") else "[ ] ") + " | ".join(p for p in partes if p)
+
+
+def texto_pagamento(it):
+    """'PAGO (Pix)' ou 'A PAGAR na retirada (Pix)'."""
+    forma = str(it.get("pagamento") or "").strip()
+    if str(it.get("pago") or "").lower().startswith("s"):
+        return "PAGO" + (" (%s)" % forma if forma else "")
+    return "A PAGAR na retirada" + (" (%s)" % forma if forma else "")
 
 
 def linha_endereco(it):

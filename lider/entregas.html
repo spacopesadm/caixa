@@ -47,7 +47,8 @@ h2{font-size:15px;margin:18px 2px 6px}
 "use strict";
 var $=document.getElementById("app");
 var S={u:"",t:"",snap:null,erro:"",bairros:{},todos:[],regioes:{},lista:[],pronto:false,env:{},msg:"",msgErro:false};
-var TIPOS=["Entrega","Condicional (Levar)","Condicional (Buscar)","Troca"];
+var TIPOS=["Entrega","Condicional (Levar)","Condicional (Buscar)","Troca","Vem buscar"];
+var FORMAS=["Pix","Cartão de débito","Cartão de crédito","Dinheiro","Link de pagamento","Outra forma"];
 var DIAS=["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
 function guardar(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function ler(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
@@ -87,12 +88,17 @@ function montarForm(){
     '<label>Vendedor(a) <i>*</i></label><input id="f_vend" list="dl_vend" autocomplete="off" value="'+esc(lv)+'" placeholder="Seu nome">'+
     '<label>O que é <i>*</i></label><select id="f_tipo">'+TIPOS.map(function(t){return '<option>'+t+'</option>'}).join("")+'</select>'+
     '<label>Nome do cliente <i>*</i></label><input id="f_cliente" autocomplete="off">'+
-    '<label>Telefone <i>*</i></label><input id="f_tel" type="tel" inputmode="numeric" placeholder="(33) 99999-9999" autocomplete="off">'+
+    '<label>Telefone <i id="i_tel">*</i></label><input id="f_tel" type="tel" inputmode="numeric" placeholder="(33) 99999-9999" autocomplete="off">'+
+    '<div id="w_busca" style="display:none">'+
+      '<label>Quem vem pegar <small>(vazio = a própria cliente)</small></label><input id="f_quem" autocomplete="off" placeholder="Ex.: marido, mãe, motoboy">'+
+      '<div class="row"><div><label>Já está pago? <i>*</i></label><select id="f_pago"><option value="">Escolha</option><option>Sim</option><option>Não</option></select></div>'+
+      '<div><label>Como foi o pagamento? <i id="i_forma"></i></label><select id="f_forma"><option value="">Escolha</option>'+FORMAS.map(function(t){return '<option>'+t+'</option>'}).join("")+'</select></div></div></div>'+
+    '<div id="w_end">'+
     '<label>Bairro <i>*</i></label><input id="f_bairro" autocomplete="off" placeholder="Digite o começo do nome (ex.: cen, sant)">'+
     '<div id="sug"></div><div id="i_bairro"></div>'+
     '<label>Endereço (rua, número, complemento) <i>*</i></label><input id="f_end" autocomplete="off" placeholder="Ex.: Rua das Flores, 120, apto 2">'+
     '<label>Ponto de referência</label><input id="f_ref" autocomplete="off" placeholder="Ex.: ao lado da padaria, portão azul">'+
-    '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div>'+
+    '<div class="row"><div><label>CEP (opcional)</label><input id="f_cep" inputmode="numeric" placeholder="00000-000" autocomplete="off"></div></div></div>'+
     '<div class="row"><div><label>Dia <i>*</i></label><input id="f_data" type="date" min="'+iso(new Date())+'" value="'+proximoDiaValido()+'"></div>'+
     '<div><label>Horário <i>*</i></label><select id="f_jan"></select></div></div>'+
     '<div id="w_esp" style="display:none"><label>Horário específico <i>*</i></label><input id="f_esp" type="time"></div>'+
@@ -100,6 +106,15 @@ function montarForm(){
     '<label>Observações</label><textarea id="f_det" rows="2" placeholder="Ex.: levar maquininha, cliente só atende depois das 10h"></textarea>'+
     '<button class="go" id="b_enviar">Agendar</button><div id="f_msg"></div></div>'+
     '<div id="lista"></div>';
+  function trocaTipo(){
+    var b=val("f_tipo")==="Vem buscar";
+    document.getElementById("w_busca").style.display=b?"block":"none";
+    document.getElementById("w_end").style.display=b?"none":"block";
+    document.getElementById("i_tel").style.display=b?"none":"inline";
+    document.getElementById("b_enviar").textContent=b?"Agendar retirada":"Agendar";
+    msg("")}
+  document.getElementById("f_tipo").addEventListener("change",trocaTipo);
+  document.getElementById("f_pago").addEventListener("change",function(){document.getElementById("i_forma").textContent=this.value==="Sim"?"*":""});
   document.getElementById("f_tel").addEventListener("input",function(ev){
     var d=this.value.replace(/\D/g,"").slice(0,11),o=d;
     if(d.length>2)o="("+d.slice(0,2)+") "+d.slice(2,d.length>10?7:6)+(d.length>(d.length>10?7:6)?"-"+d.slice(d.length>10?7:6):"");
@@ -184,30 +199,37 @@ function enviar(){
   var s=S.snap;if(!s){msg("Sem conexão com o caixa. Tente de novo.",true);return}
   var f={vendedor:val("f_vend").trim(),tipo:val("f_tipo"),cliente:val("f_cliente").trim(),telefone:val("f_tel"),bairro:val("f_bairro").trim(),
          endereco:val("f_end").trim(),referencia:val("f_ref").trim(),cep:val("f_cep"),data:val("f_data"),janela:val("f_jan"),detalhe:val("f_det").trim()};
-  var tel=f.telefone.replace(/\D/g,"");
+  var tel=f.telefone.replace(/\D/g,""),busca=f.tipo==="Vem buscar";
   if(!f.vendedor)return msg("Escreva o nome do vendedor.",true);
   if(!f.cliente)return msg("Escreva o nome do cliente.",true);
+  if(busca){
+    f={vendedor:f.vendedor,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,data:f.data,janela:f.janela,detalhe:f.detalhe,
+       quem_busca:val("f_quem").trim(),pago:val("f_pago"),pagamento:val("f_forma")};
+    if(tel&&(tel.length<10||tel.length>11))return msg("Telefone inválido. Use DDD + número ou deixe vazio.",true);
+    if(!f.pago)return msg("Diga se já está pago (Sim ou Não).",true);
+    if(f.pago==="Sim"&&!f.pagamento)return msg("Escolha como foi o pagamento.",true);
+  }else{
   if(tel.length<10||tel.length>11)return msg("Telefone inválido. Use DDD + número.",true);
   if(!f.bairro)return msg("Escolha o bairro.",true);
   if(!f.endereco)return msg("Escreva o endereço (rua e número).",true);
   var bt=S.bairros[norm(f.bairro)];if(bt)f.bairro=bt.bairro;
-  if(f.cep&&f.cep.replace(/\D/g,"").length!==8)return msg("CEP incompleto. Deixe vazio ou use 8 números.",true);
+  if(f.cep&&f.cep.replace(/\D/g,"").length!==8)return msg("CEP incompleto. Deixe vazio ou use 8 números.",true);}
   if(f.janela==="__outro"){
     var esp=val("f_esp");if(!esp)return msg("Digite o horário específico.",true);
     var hp=esp.split(":");if(f.data===iso(new Date())&&(+hp[0]*60+(+hp[1]))<=new Date().getHours()*60+new Date().getMinutes())return msg("Esse horário já passou.",true);
     f.janela=esp;
   }
   if(!f.data||!f.janela)return msg("Escolha o dia e o horário.",true);
-  if(ent().dias.indexOf(pyDia(f.data))<0)return msg("Nesse dia não há entregas.",true);
+  if(!busca&&ent().dias.indexOf(pyDia(f.data))<0)return msg("Nesse dia não há entregas.",true);
   guardar("ev_vend",f.vendedor);
   var ts=Date.now(),pid="ag"+ts+Math.random().toString(36).slice(2,8).replace(/[^a-z0-9]/g,"x");
   var b=document.getElementById("b_enviar");b.disabled=true;
   put("pedidos/"+iso(new Date())+"/"+pid,{k:"ag",op:"add",fid:"",ts:ts,item:f}).then(function(){
     b.disabled=false;
-    ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det","f_esp"].forEach(function(id){document.getElementById(id).value=""});
+    ["f_cliente","f_tel","f_bairro","f_end","f_ref","f_cep","f_det","f_esp","f_quem","f_pago","f_forma"].forEach(function(id){document.getElementById(id).value=""});document.getElementById("i_forma").textContent="";
     document.getElementById("i_bairro").innerHTML="";document.getElementById("sug").innerHTML="";
     msg("Agendado! Aparece na lista em alguns segundos.",false);
-    S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:f.bairro,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
+    S.lista.push({id:"novo"+ts,data:f.data,janela:f.janela,bairro:busca?"Retirada na loja":f.bairro,quem_busca:f.quem_busca,pago:f.pago,pagamento:f.pagamento,zona:(S.bairros[norm(f.bairro)]||{}).zona,tipo:f.tipo,cliente:f.cliente,telefone:f.telefone,vendedor:f.vendedor,_novo:1});
     infoJanela();desenhaLista();
   }).catch(function(){b.disabled=false;msg("Não consegui enviar. Verifique a internet e tente de novo.",true)});
 }
@@ -227,7 +249,7 @@ function desenhaLista(){
     if(x.data!==dia){dia=x.data;jan="";h+='<div class="dia">'+brData(x.data)+" · "+DIAS[diaSemana(x.data)]+"</div>"}
     if(x.janela!==jan){jan=x.janela;h+='<div class="jan">'+esc((x.janela||"").replace("-"," às "))+((x.janela||"").indexOf("-")<0&&x.janela!=="Qualquer horário"?" (horário específico)":"")+"</div>"}
     h+='<div class="card" style="margin:4px 0"><div class="sub">'+esc(x.tipo)+(x.feito?" · feito":"")+'</div><b>'+esc(x.cliente||x.titulo||"")+'</b>'+
-       '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Região '+esc(x.zona)+'</span>':"")+(x.endereco?'<div class="sub">'+esc(x.endereco)+'</div>':"")+'</div>'+
+       '<div>'+esc(x.bairro||"")+(x.zona?' <span class="tag">Região '+esc(x.zona)+'</span>':"")+(x.endereco?'<div class="sub">'+esc(x.endereco)+'</div>':"")+(x.tipo==="Vem buscar"?'<div class="sub">Quem busca: '+esc(x.quem_busca||"a própria cliente")+' · <b>'+(String(x.pago||"").toLowerCase().charAt(0)==="s"?"PAGO"+(x.pagamento?" ("+esc(x.pagamento)+")":""):"A PAGAR na retirada"+(x.pagamento?" ("+esc(x.pagamento)+")":""))+'</b></div>':"")+'</div>'+
        '<div class="sub">'+esc(x.telefone||"")+(x.vendedor?" · "+esc(x.vendedor):"")+'</div>'+
        (x.feito||x._novo?"":'<div style="margin-top:6px"><button class="no" onclick="cancelar(\''+esc(x.id)+'\')">Cancelar</button></div>')+'</div>';
   });

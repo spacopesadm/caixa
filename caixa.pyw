@@ -129,6 +129,7 @@ DEFAULT_CONFIG = {
     "janelas_entrega": ["09:00-11:00", "12:00-13:00", "15:00-16:00", "18:00-19:00"],
     "dias_entrega": [0, 1, 2, 3, 4],
     "entrega_antes": 15,
+    "qualquer_repetir_minutos": 120,
     "impressora": "",
     "impressora_colunas": 48,
     "imprimir_auto": False,
@@ -2367,7 +2368,9 @@ class App:
                 iid = "a" + re.sub(r"[^A-Za-z0-9]", "", str(p.get("pid", "")))[-9:]
                 if any(x["id"] == iid for x in self.agenda):
                     return False
-                if i.get("tipo") in agenda.TIPOS_ENTREGA:
+                if i.get("tipo") == agenda.BUSCAR:
+                    it = self.item_busca(i, iid)
+                elif i.get("tipo") in agenda.TIPOS_ENTREGA:
                     it = self.item_entrega(i, iid)
                 else:
                     it = agenda.criar(agenda.parse_data(i.get("data", "")), agenda.parse_hora(i.get("hora", "")), i.get("tipo", "Aviso"),
@@ -2477,6 +2480,41 @@ class App:
         self.aprender_entrega(it)
         return it
 
+    def item_busca(self, i, iid=None):
+        """'Vem buscar': cliente, quem vem pegar, se já está pago e como foi o pagamento. Sem endereço."""
+        def pega(k):
+            return str(i.get(k) or "").strip()
+        for k, rot in (("cliente", "nome do cliente"), ("vendedor", "vendedor"), ("janela", "horário"), ("pago", "se já está pago")):
+            if not pega(k):
+                raise ValueError("falta " + rot)
+        data = agenda.parse_data(pega("data"))
+        try:
+            janela = agenda.parse_janela(pega("janela"))
+            if janela != agenda.QUALQUER and janela not in (self.cfg.get("janelas_entrega") or []):
+                janela = agenda.parse_hora(pega("janela").split("-")[0])
+        except ValueError:
+            janela = agenda.parse_hora(pega("janela"))
+        pago = "Sim" if pega("pago").lower().startswith("s") else "Não"
+        forma = pega("pagamento")
+        if pago == "Sim" and not forma:
+            raise ValueError("falta como foi o pagamento")
+        tel = re.sub(r"\D", "", pega("telefone"))
+        if tel and not (10 <= len(tel) <= 11):
+            raise ValueError("telefone inválido")
+        tel_fmt = ("(%s) %s-%s" % (tel[:2], tel[2:-4], tel[-4:])) if tel else ""
+        quem = pega("quem_busca") or "a própria cliente"
+        det = ["Cliente: %s%s" % (pega("cliente"), (" - Tel: " + tel_fmt) if tel_fmt else ""),
+               "Quem vem buscar: %s" % quem,
+               "Pagamento: " + agenda.texto_pagamento({"pago": pago, "pagamento": forma})]
+        if pega("detalhe"):
+            det.append("Obs.: %s" % pega("detalhe"))
+        det.append("Vendedor: %s - Horário: %s" % (pega("vendedor"), janela.replace("-", " às ")))
+        primeira = sorted(str(j).split("-")[0] for j in (self.cfg.get("janelas_entrega") or ["09:00-11:00"]))[0]
+        return agenda.criar(data, agenda.janela_inicio(janela, primeira), agenda.BUSCAR, "Vem buscar - %s (%s)" % (pega("cliente"), quem), "\n".join(det)[:800],
+                            0 if janela == agenda.QUALQUER else int(self.cfg.get("entrega_antes", 15) or 0), id_=iid,
+                            extra={"cliente": pega("cliente"), "bairro": "Retirada na loja", "obs": pega("detalhe"), "telefone": tel_fmt,
+                                   "vendedor": pega("vendedor"), "janela": janela, "quem_busca": quem, "pago": pago, "pagamento": forma})
+
     def ag_imprimir(self, it):
         """Imprime o endereço da entrega na impressora térmica (Epson TM-T20x)."""
         try:
@@ -2583,8 +2621,13 @@ class App:
                 self.ag_mostrar(it, pre=True)
             elif agora >= t and agora >= e["next"]:
                 e["n"] += 1
-                e["next"] = agora + max(1, int(self.cfg.get("repetir_urgente_minutos", 5))) * 60
-                self.ag_mostrar(it, atraso=(agora - t) / 60.0)
+                if agenda.e_qualquer(it.get("janela")):
+                    # sem horário marcado: avisa de tempos em tempos (padrão 2 em 2 horas), nunca em vermelho nem "atrasado"
+                    e["next"] = agora + max(15, int(self.cfg.get("qualquer_repetir_minutos", 120))) * 60
+                    self.ag_mostrar(it, atraso=0.0)
+                else:
+                    e["next"] = agora + max(1, int(self.cfg.get("repetir_urgente_minutos", 5))) * 60
+                    self.ag_mostrar(it, atraso=(agora - t) / 60.0)
 
     def ag_atualizar_janela(self):
         try:
@@ -2610,7 +2653,7 @@ class App:
         ENT = list(agenda.TIPOS_ENTREGA)
         V = {"tipo": tk.StringVar(value=ENT[0]), "data": tk.StringVar(), "hora": tk.StringVar(value="14:00"),
              "antes": tk.StringVar(value="15"), "titulo": tk.StringVar()}
-        E = {k: tk.StringVar() for k in ("vendedor", "cliente", "tel", "bairro", "end", "ref", "cep", "jan", "esp")}
+        E = {k: tk.StringVar() for k in ("vendedor", "cliente", "tel", "bairro", "end", "ref", "cep", "jan", "esp", "quem", "pago", "forma")}
         V["data"].set(agenda.data_br(today()))
         OUTRO = "Outro horário (digitar)"
         janelas = list(self.cfg.get("janelas_entrega") or []) + [agenda.QUALQUER, OUTRO]
@@ -2672,6 +2715,33 @@ class App:
         obs = tk.Text(fe, height=2, width=70, font=(FONT, 10), wrap="word")
         obs.grid(row=12, column=0, columnspan=4, sticky="we")
 
+        # ---- formulário de VEM BUSCAR (retirada na loja)
+        fb = tk.Frame(f, bg=BG)
+        lab(fb, "Vendedor(a) *", 0, 0)
+        ttk.Combobox(fb, textvariable=E["vendedor"], values=self.lista_vendedores(), width=24).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        lab(fb, "Dia * (dd/mm/aaaa)", 0, 1)
+        ttk.Entry(fb, textvariable=V["data"], width=14).grid(row=1, column=1, sticky="w", padx=(0, 8))
+        lab(fb, "Horário *", 0, 2)
+        cb_jan2 = ttk.Combobox(fb, textvariable=E["jan"], values=janelas, width=22, state="readonly")
+        cb_jan2.grid(row=1, column=2, sticky="w")
+        lab(fb, "Horário específico (HH:MM)", 0, 3)
+        ent_esp2 = ttk.Entry(fb, textvariable=E["esp"], width=8, state="disabled")
+        ent_esp2.grid(row=1, column=3, sticky="w", padx=(8, 0))
+        lab(fb, "Nome da cliente *", 2, 0)
+        ttk.Entry(fb, textvariable=E["cliente"], width=34).grid(row=3, column=0, columnspan=2, sticky="w")
+        lab(fb, "Quem vem pegar (vazio = a própria cliente)", 2, 2, 2)
+        ttk.Entry(fb, textvariable=E["quem"], width=30).grid(row=3, column=2, columnspan=2, sticky="w")
+        lab(fb, "Já está pago? *", 4, 0)
+        cb_pago = ttk.Combobox(fb, textvariable=E["pago"], values=["Sim", "Não"], width=10, state="readonly")
+        cb_pago.grid(row=5, column=0, sticky="w")
+        lab(fb, "Como foi o pagamento? (ou como vai pagar)", 4, 1, 2)
+        ttk.Combobox(fb, textvariable=E["forma"], values=agenda.FORMAS_PAGTO, width=24).grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 8))
+        lab(fb, "Telefone (opcional)", 4, 3)
+        ttk.Entry(fb, textvariable=E["tel"], width=18).grid(row=5, column=3, sticky="w")
+        lab(fb, "Observações", 6, 0, 3)
+        obs2 = tk.Text(fb, height=2, width=70, font=(FONT, 10), wrap="word")
+        obs2.grid(row=7, column=0, columnspan=4, sticky="we")
+
         # ---- formulário de lembrete / aviso / atendimento
         fg = tk.Frame(f, bg=BG)
         for c, txt in enumerate(("Dia (dd/mm/aaaa)", "Hora", "Avisar antes (min)")):
@@ -2691,11 +2761,13 @@ class App:
         msg.grid(row=5, column=0, columnspan=6, sticky="w", pady=(4, 0))
 
         def mostrar_form(_e=None):
-            if V["tipo"].get() in ENT:
-                fg.grid_remove()
+            for fr in (fe, fb, fg):
+                fr.grid_remove()
+            if V["tipo"].get() == agenda.BUSCAR:
+                fb.grid(row=3, column=0, columnspan=6, sticky="w")
+            elif V["tipo"].get() in ENT:
                 fe.grid(row=3, column=0, columnspan=6, sticky="w")
             else:
-                fe.grid_remove()
                 fg.grid(row=3, column=0, columnspan=6, sticky="w")
             msg.configure(text="")
         cb_tipo.bind("<<ComboboxSelected>>", mostrar_form)
@@ -2703,9 +2775,11 @@ class App:
         def jan_mudou(_e=None):
             esp = E["jan"].get() == OUTRO
             ent_esp.configure(state="normal" if esp else "disabled")
+            ent_esp2.configure(state="normal" if esp else "disabled")
             if not esp:
                 E["esp"].set("")
         cb_jan.bind("<<ComboboxSelected>>", jan_mudou)
+        cb_jan2.bind("<<ComboboxSelected>>", jan_mudou)
 
         def sugerir(_e=None):
             t = agenda.chave_bairro(E["bairro"].get())
@@ -2820,7 +2894,7 @@ class App:
                     atras = it["data"] < hoje or (it["data"] == hoje and agenda.prazo(it) < agora)
                     tag = "atrasado" if atras else ("entrega" if it.get("janela") else "")
                 tv.insert("", "end", iid=it["id"], tags=(tag,) if tag else (),
-                          values=("☑" if it.get("feito") else "☐", quando_txt(it), it["tipo"], it.get("cliente") or it["titulo"], it.get("bairro", ""),
+                          values=("☑" if it.get("feito") else "☐", quando_txt(it), it["tipo"], it.get("cliente") or it["titulo"], ("Na loja · " + agenda.texto_pagamento(it)) if it.get("tipo") == agenda.BUSCAR else it.get("bairro", ""),
                                   it.get("telefone", ""), it.get("vendedor", "")))
             resumo.configure(text="%d a fazer · %d feitos" % (pend, feitos))
         filtro.trace_add("write", lambda *_: recarregar_lista())
@@ -2902,7 +2976,7 @@ class App:
                     rtx.tag_bind(tg, "<Leave>", lambda _e: rtx.configure(cursor="arrow"))
                     ft = ("f",) if it.get("feito") else ()
                     rtx.insert("end", it.get("cliente") or it.get("titulo", ""), ("n",) + ft)
-                    resto = "   %s · %s%s%s" % (it.get("tipo", ""), (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")),
+                    resto = "   %s · %s%s%s" % (it.get("tipo", ""), ("quem busca: %s · %s" % (it.get("quem_busca") or "a cliente", agenda.texto_pagamento(it))) if it.get("tipo") == agenda.BUSCAR else (it.get("bairro", "") + (" (R%s)" % it["zona"] if it.get("zona") else "")),
                                                 ("  ·  " + it["telefone"]) if it.get("telefone") else "", ("  ·  " + it["vendedor"]) if it.get("vendedor") else "")
                     rtx.insert("end", resto + "\n", ("m",) + ft)
                     end = agenda.linha_endereco(it)
@@ -2924,6 +2998,7 @@ class App:
             V["titulo"].set("")
             det.delete("1.0", "end")
             obs.delete("1.0", "end")
+            obs2.delete("1.0", "end")
             vend = E["vendedor"].get()
             for k in E:
                 E[k].set("")
@@ -2940,7 +3015,25 @@ class App:
 
         def adicionar():
             try:
-                if V["tipo"].get() in ENT:
+                if V["tipo"].get() == agenda.BUSCAR:
+                    jan = E["jan"].get()
+                    if jan == OUTRO:
+                        if not E["esp"].get().strip():
+                            raise ValueError("Digite o horário específico (ex.: 14:30).")
+                        jan = E["esp"].get().strip()
+                    pedido = {"tipo": agenda.BUSCAR, "vendedor": E["vendedor"].get(), "cliente": E["cliente"].get(), "telefone": E["tel"].get(),
+                              "quem_busca": E["quem"].get(), "pago": E["pago"].get(), "pagamento": E["forma"].get(),
+                              "data": V["data"].get(), "janela": jan, "detalhe": obs2.get("1.0", "end").strip()}
+                    try:
+                        novo = self.item_busca(pedido, edit["id"])
+                    except ValueError as ex:
+                        t = str(ex)
+                        if t.startswith("falta "):
+                            t = "Preencha: " + t[6:] + "."
+                        elif t == "telefone inválido":
+                            t = "Telefone inválido: use DDD + número ou deixe vazio."
+                        raise ValueError(t)
+                elif V["tipo"].get() in ENT:
                     jan = E["jan"].get()
                     if jan == OUTRO:
                         if not E["esp"].get().strip():
@@ -2991,7 +3084,22 @@ class App:
             edit["id"] = it["id"]
             V["tipo"].set(it["tipo"])
             V["data"].set(agenda.data_br(it["data"]))
-            if it["tipo"] in ENT:
+            if it["tipo"] == agenda.BUSCAR:
+                E["vendedor"].set(it.get("vendedor", ""))
+                E["cliente"].set(it.get("cliente", ""))
+                E["tel"].set(it.get("telefone", ""))
+                E["quem"].set(it.get("quem_busca", ""))
+                E["pago"].set(it.get("pago", ""))
+                E["forma"].set(it.get("pagamento", ""))
+                obs2.insert("1.0", it.get("obs", ""))
+                j = it.get("janela") or ""
+                if j in janelas:
+                    E["jan"].set(j)
+                elif j:
+                    E["jan"].set(OUTRO)
+                    E["esp"].set(j.split("-")[0])
+                jan_mudou()
+            elif it["tipo"] in ENT:
                 E["vendedor"].set(it.get("vendedor", ""))
                 E["cliente"].set(it.get("cliente", ""))
                 E["tel"].set(it.get("telefone", ""))

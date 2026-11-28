@@ -106,3 +106,8 @@ VERSÃO 26 - LOGO, TEMA DO DIA E CONFIGURAÇÕES NOVAS
 - Botão "Agenda · entregas e avisos" separado dos outros, centralizado e em destaque no painel.
 - Novo tema "Muda com o dia" (Configurações > Aparência): o fundo vai mudando sozinho - amanhecer, manhã, meio-dia, tarde, entardecer, anoitecer e noite. Atualiza a cada minuto com o painel aberto.
 - Configurações com o mesmo visual do painel: fundo em degradê, cartão arredondado, botões Salvar/Cancelar arredondados e abas mais compactas.
+
+VERSÃO 27 - VEM BUSCAR, AVISO DE QUALQUER HORÁRIO E RELATÓRIO NOVO
+- Novo tipo de agendamento "Vem buscar" (na Agenda do computador e no site dos vendedores): nome da cliente, quem vem pegar, se já está pago (Sim/Não) e como foi o pagamento (Pix, cartão, dinheiro...). Não pede endereço. Aparece na lista, no roteiro e no aviso ("PAGO (Pix)" ou "A PAGAR na retirada").
+- Entrega com "Qualquer horário": o aviso no caixa agora se repete só de 2 em 2 horas (mudável em Configurações > Entregas), sem ficar vermelho nem "atrasado".
+- Relatório do dia redesenhado: 4 cartões separados no topo, seções separadas por linha fina, "O que melhorar" e "Pontos fortes" lado a lado, gráficos de barras finos e limpos, tabelas mais leves.

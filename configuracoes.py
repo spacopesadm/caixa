@@ -568,6 +568,7 @@ def abrir(app):
         V["ent_d%d" % i] = tk.BooleanVar(value=i in (cfg.get("dias_entrega") or []))
         ttk.Checkbutton(fd, text=DIAS_NOMES[i], variable=V["ent_d%d" % i]).pack(anchor="w")
     campo(t11, 3, "Avisar no caixa quantos minutos antes", "ent_antes", cfg.get("entrega_antes", 15), 6)
+    spin(t11, 40, "Entrega com \"Qualquer horário\": repetir o aviso a cada", "qualq_rep", cfg.get("qualquer_repetir_minutos", 120), 15, 600, "minutos (120 = de 2 em 2 horas)")
     ttk.Label(t11, text="Impressora térmica (Epson TM-T20x)", font=(FONT, 11, "bold")).grid(row=4, column=0, columnspan=3, sticky="w", pady=(16, 0))
     try:
         import impressao as _imp
@@ -911,6 +912,7 @@ def abrir(app):
                 _bs.append({"bairro": lin})
         n["bairros_extra"] = _bs
         n["entrega_antes"] = _num("Avisar antes (entregas)", V["ent_antes"].get(), 0, 120)
+        n["qualquer_repetir_minutos"] = _num("Aviso de Qualquer horário", V["qualq_rep"].get(), 15, 600)
         n["impressora"] = V["imp"].get().strip()
         n["imprimir_auto"] = bool(V["imp_auto"].get())
         n["impressora_colunas"] = _num("Colunas do papel", V["imp_col"].get(), 24, 64)

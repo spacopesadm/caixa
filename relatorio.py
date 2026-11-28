@@ -222,11 +222,12 @@ def render_pdf(d, caminho):
     from reportlab.lib.units import mm
     from reportlab.pdfbase.pdfmetrics import stringWidth
     from reportlab.graphics.shapes import Drawing, Line, Rect, String
-    from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     INK = colors.HexColor("#14202E")
     GREY = colors.HexColor("#5B6878")
-    LINE = colors.HexColor("#CBD3DE")
+    LINE = colors.HexColor("#DDE3EC")
+    TRILHO = colors.HexColor("#EEF1F6")
     PINK = colors.HexColor("#E0246F")
     GREEN = colors.HexColor("#13805A")
     AMBER = colors.HexColor("#D98A00")
@@ -240,7 +241,7 @@ def render_pdf(d, caminho):
     base = ParagraphStyle("b", fontName="Helvetica", fontSize=10, leading=14, textColor=INK)
     small = ParagraphStyle("s", parent=base, fontSize=8.5, leading=11, textColor=GREY)
     h1 = ParagraphStyle("h1", parent=base, fontName="Helvetica-Bold", fontSize=24, leading=28)
-    h2 = ParagraphStyle("h2", parent=base, fontName="Helvetica-Bold", fontSize=12.5, leading=16, spaceBefore=14, spaceAfter=6)
+    h2 = ParagraphStyle("h2", parent=base, fontName="Helvetica-Bold", fontSize=12.5, leading=16, spaceBefore=0, spaceAfter=2)
     h2k = ParagraphStyle("h2k", parent=h2, keepWithNext=1)
     smallk = ParagraphStyle("smallk", parent=small, keepWithNext=1, spaceAfter=4)
     item = ParagraphStyle("i", parent=base, leftIndent=12, bulletIndent=0, spaceAfter=3)
@@ -249,33 +250,49 @@ def render_pdf(d, caminho):
     titulo = "%s, %d de %s de %d" % (DIAS[dia.weekday()], dia.day, MESES[dia.month - 1], dia.year)
     quem = " · ".join(x for x in [("Loja: " + d["loja"]) if d["loja"] else "", ("Caixa: " + d["caixa"]) if d["caixa"] else ""] if x)
 
+    def secao(titulo, dica=None):
+        """Título de seção com bastante respiro e uma linha fina horizontal separando do bloco anterior."""
+        sp, hr = Spacer(1, 16), HRFlowable(width="100%", thickness=0.6, color=LINE, spaceBefore=0, spaceAfter=10)
+        sp.keepWithNext = hr.keepWithNext = 1          # a linha nunca fica sozinha no fim da página
+        out = [sp, hr, Paragraph(titulo, h2k)]
+        if dica:
+            out.append(Paragraph(dica, smallk))
+        return out
+
     story = []
     story.append(Paragraph("Relatório do Caixa", h1))
     story.append(Paragraph(titulo + (" · " + quem if quem else ""), ParagraphStyle("sub", parent=base, textColor=GREY, spaceBefore=2)))
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 4))
+    story.append(HRFlowable(width=40, thickness=3, color=PINK, spaceBefore=4, spaceAfter=14, hAlign="LEFT"))
 
-    # indicadores
-    big = ParagraphStyle("big", parent=base, fontName="Helvetica-Bold", fontSize=20, leading=24)
-
-    def tile(valor, rotulo, cor_v=INK):
-        return [Paragraph('<font color="%s">%s</font>' % (cor_v.hexval().replace("0x", "#"), html.escape(valor)), big),
-                Paragraph(html.escape(rotulo), small)]
+    # indicadores: 4 cartões separados lado a lado
     pct = int(round(100.0 * d["concluidas"] / d["total"])) if d["total"] else 0
     media_txt = minutos_txt(d["media"]) if d["linhas"] else "-"
+    GAP = 8
+    TW = (W - 3 * GAP) / 4.0
+
+    def tile(valor, rotulo, cor_v=INK):
+        g = Drawing(TW, 52)
+        g.add(Rect(0, 0, TW, 52, rx=7, ry=7, fillColor=PAPER, strokeColor=None))
+        g.add(String(10, 28, valor, fontName="Helvetica-Bold", fontSize=18, fillColor=cor_v))
+        g.add(String(10, 12, rotulo, fontName="Helvetica", fontSize=7.5, fillColor=GREY))
+        return g
     tiles = [
         tile("%d de %d" % (d["concluidas"], d["total"]), "tarefas concluídas (%d%%)" % pct, GREEN if pct == 100 else INK),
         tile(media_txt, "demora média após o horário", cor(d["media"]) if d["linhas"] else INK),
         tile("%d de %d" % (d["no_prazo"], len(d["linhas"])), "feitas em até %d min" % META_MIN),
         tile(str(d["vermelhos"]), "chegaram ao aviso vermelho", RED if d["vermelhos"] else INK),
     ]
-    t = Table([tiles], colWidths=[W / 4.0] * 4)
-    t.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.6, LINE), ("INNERGRID", (0, 0), (-1, -1), 0.6, LINE),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, -1), PAPER),
-        ("LEFTPADDING", (0, 0), (-1, -1), 9), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
+    linha_t = []
+    for i, tl in enumerate(tiles):
+        linha_t.append(tl)
+        if i < 3:
+            linha_t.append("")
+    t = Table([linha_t], colWidths=[TW, GAP, TW, GAP, TW, GAP, TW])
+    t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
     story.append(t)
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 7))
     story.append(Paragraph("Avisos mostrados: %d · confirmados: %d · pausas &quot;cliente na frente&quot;: %d · adiamentos: %d" %
                            (d["avisos"], d["confirmados"], d["pausas"], d["adiadas"]), small))
 
@@ -290,30 +307,36 @@ def render_pdf(d, caminho):
     if d["perda_total"]:
         story.append(Paragraph("Pontos perdidos por demora ou tarefa não feita: %d" % d["perda_total"], small))
 
-    # o que melhorar
-    bloco = [Paragraph("O que precisa melhorar", h2)]
-    for s in d["melhorar"]:
-        bloco.append(Paragraph(html.escape(s), item, bulletText="•"))
-    story.append(KeepTogether(bloco))
+    # o que melhorar | pontos fortes (lado a lado)
+    def coluna(titulo_, lista, cor_):
+        itens = [Paragraph(titulo_, h2)] + [Paragraph(html.escape(x), item, bulletText="•") for x in lista]
+        return itens
+    story.append(Spacer(1, 16))
+    story.append(HRFlowable(width="100%", thickness=0.6, color=LINE, spaceBefore=0, spaceAfter=10))
     if d["fortes"]:
-        bloco = [Paragraph("Pontos fortes do dia", h2)]
-        for s in d["fortes"]:
-            bloco.append(Paragraph(html.escape(s), item, bulletText="•"))
-        story.append(KeepTogether(bloco))
+        colw = (W - 18) / 2.0
+        tb = Table([[coluna("O que precisa melhorar", d["melhorar"], AMBER), "", coluna("Pontos fortes do dia", d["fortes"], GREEN)]],
+                   colWidths=[colw, 18, colw])
+        tb.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                                ("LINEBEFORE", (0, 0), (0, 0), 2.5, AMBER), ("LEFTPADDING", (0, 0), (0, 0), 9),
+                                ("LINEBEFORE", (2, 0), (2, 0), 2.5, GREEN), ("LEFTPADDING", (2, 0), (2, 0), 9)]))
+        story.append(tb)
+    else:
+        story.append(KeepTogether(coluna("O que precisa melhorar", d["melhorar"], AMBER)))
 
     cell = ParagraphStyle("c", parent=base, fontSize=9, leading=11)
     def tabela(linhas_t, larguras, extra=()):
         t_ = Table(linhas_t, colWidths=larguras, repeatRows=1)
         t_.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("TEXTCOLOR", (0, 0), (-1, 0), GREY), ("LINEBELOW", (0, 0), (-1, 0), 1, INK),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.4, LINE), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, 0), 8), ("FONTSIZE", (0, 1), (-1, -1), 9),
+            ("TEXTCOLOR", (0, 0), (-1, 0), GREY), ("LINEBELOW", (0, 0), (-1, 0), 0.8, LINE),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.3, LINE), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ] + list(extra)))
         return t_
 
     if d["por_func"]:
-        story.append(Paragraph("Por funcionário", h2k))
+        story.extend(secao("Por funcionário"))
         lf = [["Funcionário", "Tarefas feitas", "Demora média", "Pontos do dia", "Pontos perdidos"]]
         ex = []
         for i, f in enumerate(d["por_func"], start=1):
@@ -324,19 +347,16 @@ def render_pdf(d, caminho):
                 ex.append(("TEXTCOLOR", (4, i), (4, i), RED))
         story.append(tabela(lf, [W * 0.32, W * 0.16, W * 0.18, W * 0.17, W * 0.17], ex))
     if d["perdas"]:
-        story.append(Paragraph("Pontos perdidos", h2k))
+        story.extend(secao("Pontos perdidos"))
         lp = [["Tarefa", "Funcionário", "Motivo", "Pontos"]]
         for nome, quem_, motivo, n_ in d["perdas"]:
             lp.append([Paragraph(html.escape(nome), cell), Paragraph(html.escape(quem_ or "-"), cell),
                        Paragraph(html.escape(motivo), cell), "-%d" % n_])
         story.append(tabela(lp, [W * 0.38, W * 0.22, W * 0.28, W * 0.12], [("TEXTCOLOR", (3, 1), (3, -1), RED)]))
 
-    # gráfico 1: demora por tarefa
-    story.append(Paragraph("Tempo de demora por tarefa", h2k))
-    story.append(Paragraph("Quanto tempo passou entre o horário previsto e a conclusão. Verde: até %d min. Amarelo: até %d min. Vermelho: mais que isso ou não feito." %
-                           (META_MIN, LIMITE_MIN), smallk))
+    # gráfico 1: demora por tarefa (barras finas sobre uma trilha clara, valor à direita)
+    story.extend(secao("Tempo de demora por tarefa", "Verde: até %d min · Amarelo: até %d min · Vermelho: mais que isso ou não feito." % (META_MIN, LIMITE_MIN)))
     barras = []
-    cont = {}
     for l in d["linhas"]:
         nome = l["nome"]
         n_igual = sum(1 for x in d["linhas"] if x["nome"] == nome and x["tipo"] == "conf")
@@ -352,73 +372,58 @@ def render_pdf(d, caminho):
     if not barras:
         story.append(Paragraph("Nenhuma tarefa registrada até agora.", base))
     else:
-        row_h, lab_w, val_w = 17, 175, 62
+        row_h, lab_w, val_w = 20, 170, 58
         area = W - lab_w - val_w
         maximo = max([v for _, v in barras if v is not None] + [LIMITE_MIN + 5])
         maximo = min(int(((maximo + 4) // 5) * 5), 60)   # acima de 60 min a barra é cortada
-        alt = row_h * len(barras) + 26
+        alt = row_h * len(barras) + 4
         g = Drawing(W, alt)
-        topo = alt - 4
-        for xv, rot, c in ((META_MIN, "meta %d min" % META_MIN, GREEN), (LIMITE_MIN, "limite %d min" % LIMITE_MIN, RED)):
-            x = lab_w + area * xv / float(maximo)
-            g.add(Line(x, 16, x, topo, strokeColor=c, strokeWidth=0.6, strokeDashArray=[2, 2]))
-            g.add(String(x, 4, rot, fontName="Helvetica", fontSize=7, fillColor=c, textAnchor="middle"))
         for i, (nome, v) in enumerate(barras):
-            y = topo - (i + 1) * row_h + 3
+            y = alt - (i + 1) * row_h + 5
             txt = nome
-            while stringWidth(txt, "Helvetica", 8.5) > lab_w - 10 and len(txt) > 4:
+            while stringWidth(txt, "Helvetica", 8.5) > lab_w - 12 and len(txt) > 4:
                 txt = txt[:-2]
             if txt != nome:
                 txt = txt.rstrip() + "..."
-            g.add(String(lab_w - 6, y + 3, txt, fontName="Helvetica", fontSize=8.5, fillColor=INK, textAnchor="end"))
+            g.add(String(lab_w - 10, y + 2, txt, fontName="Helvetica", fontSize=8.5, fillColor=INK, textAnchor="end"))
+            g.add(Rect(lab_w, y, area, 8, rx=4, ry=4, fillColor=TRILHO, strokeColor=None))
             if v is None:
-                g.add(Rect(lab_w, y, area, 11, fillColor=None, strokeColor=RED, strokeWidth=0.8, strokeDashArray=[3, 2]))
-                g.add(String(lab_w + 6, y + 3, "NÃO FEITO", fontName="Helvetica-Bold", fontSize=7.5, fillColor=RED))
+                g.add(String(lab_w + area + 8, y + 1.5, "NÃO FEITO", fontName="Helvetica-Bold", fontSize=7.5, fillColor=RED))
             else:
-                w = max(1.5, area * min(v, maximo) / float(maximo))
-                g.add(Rect(lab_w, y, w, 11, fillColor=cor(v), strokeColor=None))
-                rot = "na hora" if v < 1 else minutos_txt(v)
-                if v > maximo:   # barra cortada: o valor vai dentro dela
-                    g.add(String(lab_w + w - 5, y + 3, rot, fontName="Helvetica-Bold", fontSize=8,
-                                 fillColor=colors.white, textAnchor="end"))
-                else:
-                    g.add(String(lab_w + w + 5, y + 3, rot, fontName="Helvetica-Bold", fontSize=8, fillColor=INK))
+                w = max(8, area * min(v, maximo) / float(maximo))
+                g.add(Rect(lab_w, y, w, 8, rx=4, ry=4, fillColor=cor(v), strokeColor=None))
+                g.add(String(lab_w + area + 8, y + 1.5, "na hora" if v < 1 else minutos_txt(v), fontName="Helvetica-Bold", fontSize=8, fillColor=INK))
         story.append(g)
         if n_cortadas:
             story.append(Paragraph("(+ %d registros menores não aparecem no gráfico, mas estão na tabela abaixo.)" % n_cortadas, smallk))
 
-    # gráfico 2: caixa por hora
-    story.append(Paragraph("Caixa de hora em hora", h2k))
-    story.append(Paragraph("Atraso na conferência do caixa em cada hora cheia.", smallk))
+    # gráfico 2: caixa por hora (colunas finas, sem linhas de grade)
+    story.extend(secao("Caixa de hora em hora", "Atraso na conferência do caixa em cada hora cheia."))
     n = len(d["horas"])
     if n:
-        gh = Drawing(W, 120)
-        area_h = W - 40
-        colw = area_h / float(n)
+        gh = Drawing(W, 104)
+        colw = W / float(n)
         maxh = max([v for _, v in d["horas"] if v not in (None, -1)] + [LIMITE_MIN + 5])
         maxh = min(int(((maxh + 4) // 5) * 5), 60)
-        base_y, alt_barra = 22, 82
-        for xv, c in ((META_MIN, GREEN), (LIMITE_MIN, RED)):
-            y = base_y + alt_barra * xv / float(maxh)
-            gh.add(Line(0, y, area_h, y, strokeColor=c, strokeWidth=0.6, strokeDashArray=[2, 2]))
-            gh.add(String(area_h + 4, y - 2.5, "%d min" % xv, fontName="Helvetica", fontSize=7, fillColor=c))
-        gh.add(Line(0, base_y, area_h, base_y, strokeColor=LINE, strokeWidth=0.8))
+        base_y, alt_barra = 20, 66
         for i, (h, v) in enumerate(d["horas"]):
             cx = colw * i + colw / 2.0
-            gh.add(String(cx, 8, "%dh" % h, fontName="Helvetica-Bold", fontSize=9, fillColor=INK, textAnchor="middle"))
+            bw = min(26, colw * 0.4)
+            gh.add(Rect(cx - bw / 2.0, base_y, bw, alt_barra, rx=5, ry=5, fillColor=TRILHO, strokeColor=None))
+            gh.add(String(cx, 6, "%dh" % h, fontName="Helvetica-Bold", fontSize=9, fillColor=INK, textAnchor="middle"))
             if v is None:
-                gh.add(String(cx, base_y + 22, "faltou", fontName="Helvetica-Bold", fontSize=8.5, fillColor=RED, textAnchor="middle"))
+                gh.add(String(cx, base_y + alt_barra + 6, "faltou", fontName="Helvetica-Bold", fontSize=8, fillColor=RED, textAnchor="middle"))
             elif v == -1:
-                gh.add(String(cx, base_y + 6, "-", fontName="Helvetica", fontSize=9, fillColor=GREY, textAnchor="middle"))
+                gh.add(String(cx, base_y + alt_barra + 6, "-", fontName="Helvetica", fontSize=9, fillColor=GREY, textAnchor="middle"))
             else:
-                hb = max(2, alt_barra * min(v, maxh) / float(maxh))
-                gh.add(Rect(cx - colw * 0.27, base_y, colw * 0.54, hb, fillColor=cor(v), strokeColor=None))
-                gh.add(String(cx, base_y + hb + 4, "na hora" if v < 1 else minutos_txt(v), fontName="Helvetica-Bold",
+                hb = max(6, alt_barra * min(v, maxh) / float(maxh))
+                gh.add(Rect(cx - bw / 2.0, base_y, bw, hb, rx=5, ry=5, fillColor=cor(v), strokeColor=None))
+                gh.add(String(cx, base_y + alt_barra + 6, "na hora" if v < 1 else minutos_txt(v), fontName="Helvetica-Bold",
                               fontSize=8, fillColor=INK, textAnchor="middle"))
         story.append(gh)
 
     # tabela
-    story.append(Paragraph("Detalhe das tarefas", h2))
+    story.extend(secao("Detalhe das tarefas"))
     com_quem = bool(d["emps"])
     cab = ["Tarefa"] + (["Quem"] if com_quem else []) + ["Previsto", "Concluído", "Demora", "Situação", "Pontos"]
     linhas = [cab]
