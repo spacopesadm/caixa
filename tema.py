@@ -30,8 +30,39 @@ def _hex_ok(c):
     return False
 
 
+AUTO = "Muda com o dia"
+# (hora, cor1, cor2): madrugada -> amanhecer -> manhã -> meio-dia -> tarde -> entardecer -> anoitecer -> noite
+CICLO = [
+    (0.0, "#26304A", "#0D1322"),
+    (5.0, "#2D3652", "#121A30"),
+    (6.0, "#FFD3BE", "#B3B9EE"),
+    (8.0, "#FFF1DA", "#CFE4F7"),
+    (12.0, "#EAF4FF", "#C9DFF7"),
+    (16.0, "#FFF0D2", "#F5D7A6"),
+    (18.0, "#FFC49C", "#E58DB0"),
+    (19.5, "#6F5C9E", "#2B3060"),
+    (21.0, "#2B3548", "#0F1623"),
+    (24.0, "#26304A", "#0D1322"),
+]
+
+
+def cores_do_dia(agora=None):
+    """Cores do degradê para a hora do dia (suave entre um momento e outro)."""
+    import datetime as _dt
+    agora = agora or _dt.datetime.now()
+    h = agora.hour + agora.minute / 60.0
+    for (h0, a0, b0), (h1, a1, b1) in zip(CICLO, CICLO[1:]):
+        if h0 <= h <= h1:
+            t = (h - h0) / (h1 - h0) if h1 > h0 else 0
+            return mistura(a0, a1, t), mistura(b0, b1, t)
+    return CICLO[0][1], CICLO[0][2]
+
+
 def cores(cfg):
     """Devolve (cor1, cor2, direcao) válidos, mesmo com configuração estragada."""
+    if cfg.get("tema_nome") == AUTO:
+        a, b = cores_do_dia()
+        return a, b, "vertical"
     c1 = cfg.get("tema_cor1") if _hex_ok(cfg.get("tema_cor1")) else PADRAO["tema_cor1"]
     c2 = cfg.get("tema_cor2") if _hex_ok(cfg.get("tema_cor2")) else PADRAO["tema_cor2"]
     d = cfg.get("tema_degrade") if cfg.get("tema_degrade") in DIRECOES else "vertical"
@@ -167,6 +198,12 @@ class Pilha:
         self.itens.append((item, frame, sh, bg))
         frame.bind("<Configure>", lambda e: self.agendar(), add="+")
         self.agendar()
+
+    def recolorir(self, sombra, borda):
+        self.sombra, self.borda = sombra, borda
+        for item, fr, sh, bg in self.itens:
+            self.cv.itemconfigure(sh, fill=sombra)
+            self.cv.itemconfigure(bg, outline=borda)
 
     def agendar(self):
         if not self._agendado:

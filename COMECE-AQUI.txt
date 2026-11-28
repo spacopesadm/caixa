@@ -100,3 +100,9 @@ VERSÃO 25 - VISUAL MAIS LIMPO
 - A barra de progresso agora é só uma linha fina no rodapé, com "X de Y tarefas do dia" ao lado.
 - Caixas de seleção arredondadas (verdes ao marcar) e botões arredondados em todo o programa.
 - Nas Configurações, os nomes das abas ficaram curtos para caber na tela.
+
+VERSÃO 26 - LOGO, TEMA DO DIA E CONFIGURAÇÕES NOVAS
+- O ícone do programa (arquivo .exe, barra de tarefas, bandeja e janelas) agora é a logo da loja.
+- Botão "Agenda · entregas e avisos" separado dos outros, centralizado e em destaque no painel.
+- Novo tema "Muda com o dia" (Configurações > Aparência): o fundo vai mudando sozinho - amanhecer, manhã, meio-dia, tarde, entardecer, anoitecer e noite. Atualiza a cada minuto com o painel aberto.
+- Configurações com o mesmo visual do painel: fundo em degradê, cartão arredondado, botões Salvar/Cancelar arredondados e abas mais compactas.

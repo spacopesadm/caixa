@@ -94,20 +94,71 @@ def abrir(app):
     w.minsize(780, 460)
     w.configure(bg="#E9EDF2")
 
+    import tema as _t
+    BRANCO, SUAVE, TINTA, AZUL = "#FFFFFF", "#EEF2F8", "#14202E", "#1F46D1"
+    c1_, c2_, dg_ = _t.cores(cfg)
+    mid_ = _t.cor_media(cfg)
     style = ttk.Style(w)
     try:
-        style.configure("TNotebook.Tab", padding=(12, 6), font=(FONT, 10, "bold"))
-        style.configure("TLabel", font=(FONT, 10))
-        style.configure("TCheckbutton", font=(FONT, 10))
-        style.configure("TButton", font=(FONT, 10, "bold"), padding=(10, 5))
+        style.theme_use("clam")
+        style.configure(".", background=BRANCO, foreground=TINTA, font=(FONT, 10))
+        style.configure("TFrame", background=BRANCO)
+        style.configure("TLabel", background=BRANCO, font=(FONT, 10))
+        style.configure("TLabelframe", background=BRANCO, bordercolor="#E3E8F0")
+        style.configure("TLabelframe.Label", background=BRANCO, font=(FONT, 10, "bold"))
+        style.configure("TCheckbutton", background=BRANCO, font=(FONT, 10))
+        style.map("TCheckbutton", background=[("active", BRANCO)])
+        style.configure("TRadiobutton", background=BRANCO, font=(FONT, 10))
+        style.configure("TNotebook", background=BRANCO, borderwidth=0, tabmargins=(0, 0, 0, 0))
+        style.configure("TNotebook.Tab", padding=(8, 7), font=(FONT, 9, "bold"), background=SUAVE, foreground="#5B6878", borderwidth=0)
+        style.map("TNotebook.Tab", background=[("selected", BRANCO), ("active", "#E3E9F3")], foreground=[("selected", AZUL)])
+        style.configure("TButton", font=(FONT, 10, "bold"), padding=(12, 6), background=SUAVE, foreground=TINTA, borderwidth=0, relief="flat", focuscolor=SUAVE)
+        style.map("TButton", background=[("active", "#DCE4F0"), ("pressed", "#CFD9E8")])
+        for est in ("TEntry", "TSpinbox", "TCombobox"):
+            style.configure(est, fieldbackground=BRANCO, bordercolor="#CBD3DE", lightcolor="#CBD3DE", darkcolor="#CBD3DE", padding=4)
+        style.configure("Vertical.TScrollbar", background="#D5DCE8", troughcolor=SUAVE, bordercolor=SUAVE, arrowcolor="#5B6878", relief="flat")
     except Exception:
         pass
 
+    # fundo em degradê com um cartão arredondado onde ficam as abas (mesmo visual do painel)
+    fundoc = tk.Canvas(w, bg=mid_, highlightthickness=0)
+    fundoc.pack(fill="both", expand=True)
+    gid = fundoc.create_image(0, 0, anchor="nw", tags=("fundo",))
+    sombra_ = _t.retangulo_arredondado(fundoc, 0, 0, 10, 10, 18, fill=_t.mistura(mid_, "#000000", 0.20 if _t.luminosidade(mid_) >= 0.45 else 0.45), outline="")
+    cartao_ = _t.retangulo_arredondado(fundoc, 0, 0, 10, 10, 18, fill=BRANCO, outline=_t.mistura(mid_, "#FFFFFF", 0.55))
+    card = ttk.Frame(fundoc)
+    cjan = fundoc.create_window(0, 0, window=card, anchor="nw")
+    est = {"img": None, "t": None}
+
+    def pinta_fundo():
+        est["t"] = None
+        try:
+            LW, LH = fundoc.winfo_width(), fundoc.winfo_height()
+            im = _t.imagem_degrade(tk, LW, LH, c1_, c2_, dg_)
+            est["img"] = im
+            if im is not None:
+                fundoc.itemconfigure(gid, image=im)
+                fundoc.tag_lower("fundo")
+        except Exception:
+            pass
+
+    def ajusta(e):
+        m, p = 16, 8
+        LW, LH = e.width, e.height
+        fundoc.coords(sombra_, *_t._pontos_arredondados(m, m + 3, LW - m, LH - m + 3, 18))
+        fundoc.coords(cartao_, *_t._pontos_arredondados(m, m, LW - m, LH - m, 18))
+        fundoc.coords(cjan, m + p, m + p)
+        fundoc.itemconfigure(cjan, width=max(100, LW - 2 * (m + p)), height=max(100, LH - 2 * (m + p)))
+        if est["t"]:
+            w.after_cancel(est["t"])
+        est["t"] = w.after(150, pinta_fundo)
+    fundoc.bind("<Configure>", ajusta)
+
     # a barra com Salvar/Cancelar é empacotada ANTES das abas, no rodapé: assim ela nunca some, mesmo com abas altas
-    bar = ttk.Frame(w, padding=(12, 0, 12, 12))
+    bar = ttk.Frame(card, padding=(4, 6, 4, 2))
     bar.pack(side="bottom", fill="x")
-    nb = ttk.Notebook(w)
-    nb.pack(side="top", fill="both", expand=True, padx=12, pady=(12, 6))
+    nb = ttk.Notebook(card)
+    nb.pack(side="top", fill="both", expand=True, pady=(0, 6))
     V = {}
 
     def tab(titulo):
@@ -614,14 +665,14 @@ def abrir(app):
     # ---------------- Aparência
     import tema as _tema
     ta = tab("Aparência")
-    ttk.Label(ta, text="Escolha o visual do painel do caixa. A mudança aparece quando você salvar.", foreground=GREY,
+    ttk.Label(ta, text="Escolha o visual do painel do caixa. A mudança aparece quando você salvar. \"Muda com o dia\" troca as cores sozinho: amanhecer, manhã, tarde, entardecer e noite.", foreground=GREY,
               wraplength=560, justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
     V["tema_nome"] = tk.StringVar(value=cfg.get("tema_nome", "Azul claro"))
     V["tema_cor1"] = tk.StringVar(value=_tema.cores(cfg)[0])
     V["tema_cor2"] = tk.StringVar(value=_tema.cores(cfg)[1])
     V["tema_degrade"] = tk.StringVar(value=_tema.cores(cfg)[2])
     ttk.Label(ta, text="Tema pronto").grid(row=1, column=0, sticky="w", pady=4)
-    cb_t = ttk.Combobox(ta, textvariable=V["tema_nome"], values=list(_tema.TEMAS.keys()) + ["Personalizado"], state="readonly", width=22)
+    cb_t = ttk.Combobox(ta, textvariable=V["tema_nome"], values=[_tema.AUTO] + list(_tema.TEMAS.keys()) + ["Personalizado"], state="readonly", width=22)
     cb_t.grid(row=1, column=1, sticky="w", padx=10)
     ttk.Label(ta, text="Degradê").grid(row=2, column=0, sticky="w", pady=4)
     nomes_dir = {"Vertical (de cima para baixo)": "vertical", "Horizontal (da esquerda para a direita)": "horizontal",
@@ -672,6 +723,8 @@ def abrir(app):
 
     def aplica_tema(_e=None):
         t = _tema.TEMAS.get(V["tema_nome"].get())
+        if V["tema_nome"].get() == _tema.AUTO:
+            t = _tema.cores_do_dia()
         if t:
             V["tema_cor1"].set(t[0])
             V["tema_cor2"].set(t[1])
@@ -911,6 +964,6 @@ def abrir(app):
         app.settings_win = None
 
     w.protocol("WM_DELETE_WINDOW", fechar)
-    ttk.Button(bar, text="Salvar", command=salvar).pack(side="right")
-    ttk.Button(bar, text="Cancelar", command=fechar).pack(side="right", padx=8)
-    ttk.Button(bar, text="Restaurar padrões", command=restaurar).pack(side="left")
+    _t.Pilula(bar, text="Salvar", command=salvar, bg=AZUL, fg="#FFFFFF", font=(FONT, 10, "bold"), padx=26, pady=7, raio=14, fundo=BRANCO).pack(side="right")
+    _t.Pilula(bar, text="Cancelar", command=fechar, bg=SUAVE, fg=TINTA, font=(FONT, 10, "bold"), padx=18, pady=7, raio=14, fundo=BRANCO).pack(side="right", padx=8)
+    _t.Pilula(bar, text="Restaurar padrões", command=restaurar, bg=SUAVE, fg="#5B6878", font=(FONT, 10), padx=14, pady=7, raio=14, fundo=BRANCO).pack(side="left")

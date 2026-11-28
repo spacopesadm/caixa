@@ -485,6 +485,11 @@ class App:
         self.root = tk.Tk()
         self.root.withdraw()
         self.root.title("Painel do Caixa")
+        try:
+            self._icone = tk.PhotoImage(file=recurso("icone.png"))
+            self.root.iconphoto(True, self._icone)      # todas as janelas usam a logo da loja
+        except Exception:
+            pass
         self.cfg = load_config()
         prev = load_json(STATE_FILE, None)      # dia anterior que ficou sem relatório (computador desligado)
         self.catchup = None
@@ -3194,10 +3199,12 @@ class App:
             self.tray = None
             self.make_pill()
             return
-        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        d = ImageDraw.Draw(img)
-        d.polygon([(16, 6), (58, 6), (58, 58), (16, 58), (4, 32)], fill=(224, 36, 111, 255))
-        d.ellipse([16, 26, 26, 36], fill=(255, 255, 255, 255))
+        try:
+            img = Image.open(recurso("icone.png")).convert("RGBA").resize((64, 64), Image.LANCZOS)
+        except Exception:
+            img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            d.polygon([(16, 6), (58, 6), (58, 58), (16, 58), (4, 32)], fill=(224, 36, 111, 255))
         put = lambda c: (lambda icon=None, item=None: self.cmd_q.put(c))
         menu = pystray.Menu(
             pystray.MenuItem("Abrir checklist", put("open"), default=True),
@@ -3308,6 +3315,7 @@ class App:
         solido = c1 if dg == "nenhum" else mid
         w.configure(bg=solido)
         estilo = dict(cartao=PAPER, sombra=sombra, borda=borda)
+        K = {"c1": c1, "c2": c2, "dg": dg}
 
         def botao(pai, texto, cmd, tipo="suave", **kw):
             cores_ = {"escuro": (INK, "#FFFFFF"), "roxo": (ROXO, "#FFFFFF"), "azul": (BLUE, "#FFFFFF"),
@@ -3352,11 +3360,11 @@ class App:
         r2 = tk.Frame(right, bg=PAPER)
         r2.pack(anchor="e", pady=(5, 0))
         botao(r1, "Relatório do dia", self.generate_report, "escuro", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
-        botao(r1, "Configurações", self.open_settings, "neutro", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
-        botao(r1, "Agenda", self.open_agenda, "roxo", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left")
+        botao(r1, "Configurações", self.open_settings, "neutro", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left")
         botao(r2, "Horário de hoje", self.open_hoje, "suave", font=(FONT, 9, "bold"), padx=10, pady=4).pack(side="left", padx=(0, 5))
         W["btn_emp"] = botao(r2, "Trocar funcionário", self.open_switch, "suave", font=(FONT, 9, "bold"), padx=10, pady=4)
         W["btn_emp_pai"] = r2
+        botao(top, "Agenda  ·  entregas e avisos", self.open_agenda, "roxo", font=(FONT, 12, "bold"), padx=44, pady=8, raio=18).pack(pady=(8, 0))
         W["hold"] = tema.Pilula(top, text="", command=lambda: self.set_hold(not self.holding()), bg=SOFT, fg=BLUE,
                                 font=(FONT, 10, "bold"), pady=6, raio=14, fundo=PAPER)
         W["hold"].pack(fill="x", padx=8, pady=(8, 2))
@@ -3402,7 +3410,7 @@ class App:
                 if not w.winfo_exists():
                     return
                 LW, LH = w.winfo_width(), w.winfo_height()
-                full = tema.imagem_degrade(tk, LW, LH, c1, c2, dg)
+                full = tema.imagem_degrade(tk, LW, LH, K["c1"], K["c2"], K["dg"])
                 if full is None:
                     return
                 ht = max(1, topc.winfo_height())
@@ -3428,6 +3436,34 @@ class App:
         w.bind("<Configure>", repintar, add="+")
         topc.bind("<Configure>", repintar, add="+")
         w.after(250, pintar)
+
+        def recolorir():
+            """Tema 'Muda com o dia': a cada minuto confere se as cores mudaram e repinta o fundo."""
+            try:
+                if not w.winfo_exists():
+                    return
+                if self.cfg.get("tema_nome") == tema.AUTO:
+                    n1, n2, _d = tema.cores(self.cfg)
+                    if (n1, n2) != (K["c1"], K["c2"]):
+                        K["c1"], K["c2"] = n1, n2
+                        m = tema.cor_media(self.cfg)
+                        esc = tema.luminosidade(m) < 0.45
+                        txt = "#E8EDF5" if esc else "#4A5668"
+                        for wd in (w, body, cv, topc, rod, linha):
+                            wd.configure(bg=m)
+                        for k in ("prog", "week", "stats"):
+                            W[k].configure(bg=m, fg=txt)
+                        W["dbar"].configure(bg=tema.mistura(m, "#FFFFFF", 0.35) if not esc else "#3A455C")
+                        sb_ = tema.mistura(m, "#000000", 0.20 if not esc else 0.45)
+                        bd_ = tema.mistura(m, "#FFFFFF", 0.55) if not esc else "#46526A"
+                        for pl in (ptop, pila):
+                            pl.recolorir(sb_, bd_)
+                        pintar()
+                w.after(60000, recolorir)
+            except Exception:
+                pass
+        if self.cfg.get("tema_nome") == tema.AUTO:
+            w.after(60000, recolorir)
 
         def wheel(e):
             step = -1 if (getattr(e, "delta", 0) > 0 or getattr(e, "num", 0) == 4) else 1
@@ -3730,6 +3766,12 @@ def falar_com_instancia(msg, espera=0.0):
         return True
     except OSError:
         return False
+
+
+def recurso(nome):
+    """Caminho de um arquivo que acompanha o programa (funciona no .exe e no código-fonte)."""
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, nome)
 
 
 def instalar_e_abrir():
